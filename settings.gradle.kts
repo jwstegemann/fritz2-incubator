@@ -9,6 +9,9 @@ pluginManagement {
 }
 rootProject.name = "fritz2-incubator"
 
-include("datatable")
+include(
+  "demo",
+  "datatable"
+)
 
 enableFeaturePreview("GRADLE_METADATA")
