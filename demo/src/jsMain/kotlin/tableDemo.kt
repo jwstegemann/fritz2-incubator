@@ -11,7 +11,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
-import model.*
+import model.Address
+import model.Person
 
 val defaultList = listOf(
     Person(
