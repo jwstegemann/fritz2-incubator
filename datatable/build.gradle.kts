@@ -31,7 +31,7 @@ kotlin {
 
         val commonMain by getting {
             dependencies {
-                api("dev.fritz2:components:0.8-SNAPSHOT")
+                api("dev.fritz2:components:0.8")
             }
         }
 
