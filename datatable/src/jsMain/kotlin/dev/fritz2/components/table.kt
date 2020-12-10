@@ -427,12 +427,8 @@ class TableComponent<T> {
 
     // TODO defaultTrStyle
 
-    var selectionMode: Flow<SelectionMode> = flowOf(SelectionMode.NONE)
+    var selectionMode: SelectionMode = SelectionMode.NONE
     fun selectionMode(value: SelectionMode) {
-        selectionMode = flowOf(value)
-    }
-
-    fun selectionMode(value: Flow<SelectionMode>) {
         selectionMode = value
     }
 
@@ -506,14 +502,13 @@ fun <T, I> RenderContext.table(
     } else {
         TableComponent.staticCss
     }
-    component.selectionMode.watch()
     component.configStore.watch()
 
     // TODO: Use Column DSL here!
     val sortDirectionLens =
         buildLens("sortDirection", TableComponent.TableColumn<T>::sorting) { p, v -> p.copy(sorting = v) }
-    val additionalCol = component.selectionMode.map { selectionMode ->
-        if (selectionMode == TableComponent.Companion.SelectionMode.MULTI) {
+    val additionalCol = when (component.selectionMode) {
+        TableComponent.Companion.SelectionMode.MULTI -> {
             listOf(
                 TableComponent.TableColumn<T>(
                     minWidth = "50px",
@@ -562,7 +557,8 @@ fun <T, I> RenderContext.table(
                     }
                 )
             )
-        } else if (selectionMode == TableComponent.Companion.SelectionMode.SINGLE_CHECKBOX) {
+        }
+        TableComponent.Companion.SelectionMode.SINGLE_CHECKBOX -> {
             listOf(TableComponent.TableColumn<T>(
                 minWidth = "50px",
                 maxWidth = "50px",
@@ -594,15 +590,18 @@ fun <T, I> RenderContext.table(
                     }
                 }
             ))
-        } else {
+        }
+        else -> {
             emptyList()
         }
     }
 
 
-    val config = additionalCol.combine(component.configStore.data.map {
-        it.filterNot { it.hidden }.sortedBy { it.position }
-    }) { a, b -> a + b }
+    val config = component.configStore.data.map {
+        additionalCol + it
+    }.map { column ->
+        column.filterNot { it.hidden }.sortedBy { it.position }
+    }
 
     val gridCols = config.map { configItems ->
         var minmax = ""
@@ -704,20 +703,18 @@ fun <T, I> RenderContext.table(
 
 
                 tr {
-                    className(selected.combine(component.selectionMode) { selected, selectionMode ->
-                        if (selected && selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
+                    className(selected.map {
+                        if (it && component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
                             "selected"
                         } else {
                             ""
                         }
                     })
-                    component.selectionMode.render { selectionMode ->
-                        if (selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
-                            component.selectedRowEvent?.let {
-                                clicks.events.combine(rowStore.data) { _, thisRow ->
-                                    thisRow
-                                } handledBy it
-                            }
+                    if (component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
+                        component.selectedRowEvent?.let {
+                            clicks.events.map {
+                                rowStore.current
+                            } handledBy it
                         }
                     }
 
