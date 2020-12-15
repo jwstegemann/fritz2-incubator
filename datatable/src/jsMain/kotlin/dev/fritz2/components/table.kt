@@ -18,14 +18,17 @@ import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.Property
 import kotlinx.coroutines.flow.*
 
+interface TableSorter<T> {
+    fun sortedBy(elements: List<T>, config: List<TableComponent.TableColumn<T>>): List<T>
+}
 
-class NaiveSorter<T> {
-    fun sortedBy(elements: List<T>, config: List<TableComponent.TableColumn<T>>): List<T> {
+class NaiveSorter<T> : TableSorter<T> {
+    override fun sortedBy(elements: List<T>, config: List<TableComponent.TableColumn<T>>): List<T> {
+        // TODO: SortingColumnsProvider -> gibt zu beschaffende Columns
+        // und hat handleAndEmit, d.h.
         val filterRules = config.filter {
             it.sorting != TableComponent.Companion.Sorting.DISABLED
                     && it.sorting != TableComponent.Companion.Sorting.NONE
-                    // TODO: Not right!
-                    // TODO: && no special sorting given
                     && (it.lens != null || it.sortBy != null)
         }
         return if (filterRules.isNotEmpty()) {

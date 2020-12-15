@@ -1283,7 +1283,7 @@ fun RenderContext.tableDemo(): Div {
         }
 
 
-        selectionModeStore.data.render {
+        selectionModeStore.data.render { selectionMode ->
             table(rowIdProvider = Person::id) {
                 caption(selectionModeStore.data.map { mode ->
                     "Table with \"${mode.name}\" Selection Mode "
@@ -1292,8 +1292,8 @@ fun RenderContext.tableDemo(): Div {
                 selectedRows(selectedStore.data)
                 selectedAllRowEvents = selectedStore.update
                 selectedRowEvent = selectedStore.toggle
-                selectionMode(selectionModeStore.current)
                 defaultMinWidth = "250px"
+                selectionMode(selectionMode)
 
                 defaultThStyle {
                     {
@@ -1351,7 +1351,7 @@ fun RenderContext.tableDemo(): Div {
                                 icon { fromTheme { fritz2 } }
                             }
                         }
-                        width { max { "4fr" } }
+                        width { max { "2fr" } }
                         content { ctx, _, rowStore ->
                             rowStore?.let { person ->
                                 val street = person.sub(personAddressLens + streetLens)
@@ -1378,13 +1378,17 @@ fun RenderContext.tableDemo(): Div {
                             }
                         }
                     }
-                    column("Phone") {
-                        lens { phoneLens }
-                        // TODO: Ugly -> Enum must be receiver; but how?
-                        sorting { TableComponent.Companion.Sorting.DISABLED }
-                    }
-                    column("Mobile") { lens { mobileLens } }
-                    column("E-Mail") { lens { emailLens } }
+                    // IDEA: Grouping of columns for saving column space
+                    // No semantic meaning, but visibility improvements
+                    //group("Contact") {
+                        column("Phone") {
+                            lens { phoneLens }
+                            // TODO: Ugly -> Enum must be receiver; but how?
+                            sorting { TableComponent.Companion.Sorting.DISABLED }
+                        }
+                        column("Mobile") { lens { mobileLens } }
+                        column("E-Mail") { lens { emailLens } }
+                    //}
                 }
                 sorter = NaiveSorter()
             }
