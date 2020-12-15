@@ -105,7 +105,7 @@ class TableComponent<T> {
             prefix,
             """
                 display:grid;
-                //min-width: 100vw;
+                min-width: 95vw;
                 width: auto;
                 flex: 1;
                 display: grid;
@@ -511,16 +511,20 @@ fun <T, I> RenderContext.table(
         TableComponent.Companion.SelectionMode.MULTI -> {
             listOf(
                 TableComponent.TableColumn<T>(
-                    minWidth = "50px",
-                    maxWidth = "50px",
+                    minWidth = "60px",
+                    maxWidth = "60px",
                     contentHead = {
                         checkbox({ display { inlineBlock } }, id = uniqueId()) {
-                            label("")
+                            checked {
+                                component.selectedRows.map {
+                                    it.isNotEmpty() && it == component.tableStore.current
+                                }
+                            }
                             events {
                                 component.selectedAllRowEvents?.let {
-                                    changes.states().combine(component.tableStore.data) { selected, list ->
+                                    changes.states().map {  selected ->
                                         if (selected) {
-                                            list
+                                            component.tableStore.current
                                         } else {
                                             emptyList()
                                         }
@@ -532,20 +536,19 @@ fun <T, I> RenderContext.table(
                     content = { ctx, _, rowStore ->
                         ctx.apply {
                             checkbox(
-                                { display { inlineBlock } },
+                                { margins { "0" } },
                                 id = uniqueId()
                             ) {
-                                label("")
                                 if (rowStore != null) {
                                     checked {
-                                        component.selectedRows.combine(rowStore.data) { selectedRows, thisRow ->
-                                            selectedRows.contains(thisRow)
+                                        component.selectedRows.map{ selectedRows ->
+                                            selectedRows.contains(rowStore.current)
                                         }
                                     }
                                     events {
                                         component.selectedRowEvent?.let {
-                                            clicks.events.combine(rowStore.data) { _, thisRow ->
-                                                thisRow
+                                            clicks.events.map {
+                                                rowStore.current
                                             } handledBy it
                                         }
 
@@ -560,26 +563,24 @@ fun <T, I> RenderContext.table(
         }
         TableComponent.Companion.SelectionMode.SINGLE_CHECKBOX -> {
             listOf(TableComponent.TableColumn<T>(
-                minWidth = "50px",
-                maxWidth = "50px",
+                minWidth = "60px",
+                maxWidth = "60px",
                 content = { ctx, _, rowStore ->
                     ctx.apply {
                         checkbox(
-                            { display { inlineBlock } },
+                            { margins { "0" } },
                             id = uniqueId()
                         ) {
-                            label("")
                             if (rowStore != null) {
                                 checked {
-
-                                    component.selectedRows.combine(rowStore.data) { selectedRows, thisRow ->
-                                        selectedRows.contains(thisRow)
+                                    component.selectedRows.map{ selectedRows ->
+                                        selectedRows.contains(rowStore.current)
                                     }
                                 }
                                 events {
                                     component.selectedRowEvent?.let {
-                                        clicks.events.combine(rowStore.data) { _, thisRow ->
-                                            thisRow
+                                        clicks.events.map {
+                                            rowStore.current
                                         } handledBy it
                                     }
 
@@ -697,10 +698,10 @@ fun <T, I> RenderContext.table(
                 }
             }.renderEach(rowIdProvider) { t ->
                 val rowStore = component.tableStore.sub(t, rowIdProvider)
-                val selected = component.selectedRows.combine(rowStore.data) { selectedRows, thisRow ->
-                    selectedRows.contains(thisRow)
+                val currentRowStore = rowStore.current
+                val selected = component.selectedRows.map{ selectedRows ->
+                    selectedRows.contains(currentRowStore)
                 }
-
 
                 tr {
                     className(selected.map {
@@ -713,7 +714,7 @@ fun <T, I> RenderContext.table(
                     if (component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
                         component.selectedRowEvent?.let {
                             clicks.events.map {
-                                rowStore.current
+                                currentRowStore
                             } handledBy it
                         }
                     }
