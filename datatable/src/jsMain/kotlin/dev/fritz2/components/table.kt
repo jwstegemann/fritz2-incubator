@@ -27,36 +27,24 @@ interface TableSorter<T> {
     ): List<T>
 }
 
-class NaiveSorter<T> : TableSorter<T> {
+class SimpleSorter<T> : TableSorter<T> {
     override fun sortedBy(
         elements: List<T>,
         config: TableComponent.TableColumn<T>,
         sorting: TableComponent.Companion.Sorting
     ): List<T> {
-        // TODO: SortingColumnsProvider -> gibt zu beschaffende Columns
-        // Eigentlich ist das alles, was sowohl UI als auch diese Sortier-Engine benötigen!
-        // und hat handleAndEmit, d.h.
-
-        /*
-        val filterRules = config.filter {
-            it.sorting != TableComponent.Companion.Sorting.DISABLED
-                    && it.sorting != TableComponent.Companion.Sorting.NONE
-                    && (it.lens != null || it.sortBy != null)
-        }
-
-         */
         return if (
             sorting != TableComponent.Companion.Sorting.DISABLED
             && sorting != TableComponent.Companion.Sorting.NONE
             && (config.lens != null || config.sortBy != null)
         ) {
             elements.sortedWith(
-                createInitialComparator(config, sorting),
+                createComparator(config, sorting),
             )
         } else elements
     }
 
-    private fun createInitialComparator(
+    private fun createComparator(
         column: TableComponent.TableColumn<T>,
         sorting: TableComponent.Companion.Sorting
     ): Comparator<T> {
@@ -80,30 +68,89 @@ class NaiveSorter<T> : TableSorter<T> {
             }
         }
     }
+}
 
-    private fun combineWithPreviousComparator(
-        column: TableComponent.TableColumn<T>,
-        predecessor: Comparator<T>
-    ): Comparator<T> {
-        if (column.sortBy == null) {
-            return when (column.sorting) {
-                TableComponent.Companion.Sorting.ASC -> {
-                    predecessor.thenBy { column.lens!!.get(it) }
+interface SortingRenderer {
+    fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting)
+    fun renderSortingLost(context: Div)
+    fun renderSortingDisabled(context: Div)
+}
+
+class UpDownSortingRenderer() : SortingRenderer {
+    val sortDirectionSelected: Style<BasicParams> = {
+        color { warning }
+    }
+
+    val sortDirectionIcon: Style<BasicParams> = {
+        width { "0.9rem" }
+        height { "0.9rem" }
+        css("cursor:pointer;")
+    }
+
+    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
+        context.apply {
+            icon({
+                sortDirectionIcon()
+                if (sorting == TableComponent.Companion.Sorting.ASC) {
+                    sortDirectionSelected()
                 }
-                else -> {
-                    predecessor.thenByDescending { column.lens!!.get(it) }
+                size { normal }
+            }) { fromTheme { caretUp } }
+            icon({
+                sortDirectionIcon()
+                if (sorting == TableComponent.Companion.Sorting.DESC) {
+                    sortDirectionSelected()
                 }
-            }
-        } else {
-            return when (column.sorting) {
-                TableComponent.Companion.Sorting.ASC -> {
-                    predecessor.then(column.sortBy)
-                }
-                else -> {
-                    predecessor.thenDescending(column.sortBy)
-                }
+            }) { fromTheme { caretDown } }
+        }
+    }
+
+    override fun renderSortingLost(context: Div) {
+        context.apply {
+            // we need some empty space to click!
+            box({ sortDirectionIcon() }) { }
+        }
+    }
+
+    override fun renderSortingDisabled(context: Div) {
+        // nothing to render!
+    }
+}
+
+class TogglingSymbolSortingRenderer() : SortingRenderer {
+    val sortDirectionSelected: Style<BasicParams> = {
+        color { warning }
+    }
+
+    // TODO: Icon needs bigger size!
+    val sortDirectionIcon: Style<BasicParams> = {
+        width { "2rem" }
+        height { "2rem" }
+        css("cursor:pointer;")
+    }
+
+    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
+        context.apply {
+            when (sorting) {
+                TableComponent.Companion.Sorting.NONE -> renderSortingLost((this))
+                else -> icon({
+                    sortDirectionIcon()
+                    sortDirectionSelected()
+                    size { normal }
+                }) { fromTheme { if (sorting == TableComponent.Companion.Sorting.ASC) caretUp else caretDown } }
             }
         }
+    }
+
+    override fun renderSortingLost(context: Div) {
+        context.apply {
+            // we need some empty space to click!
+            box({ sortDirectionIcon() }) { }
+        }
+    }
+
+    override fun renderSortingDisabled(context: Div) {
+        // nothing to render!
     }
 }
 
@@ -130,16 +177,36 @@ class TableConfigStore : RootStore<TableComponent.TableState>(
 
         state.copy(sorting = id to new)
     }
+
+    // TODO: Add handler for ordering / hiding or showing columns (change ``order`` property)
+    // Example for UI for changing: https://tailwindcomponents.com/component/table-ui-with-tailwindcss-and-alpinejs
+}
+
+class SelectionStore<T> : RootStore<List<T>>(emptyList()) {
+    val selectRows = handleAndEmit<T, List<T>> { selectedRows, new ->
+        val newSelection = if (selectedRows.contains(new))
+            selectedRows - new
+        else
+            selectedRows + new
+        emit(newSelection)
+        newSelection
+    }
+
+    val selectRow = handleAndEmit<T, T> { selectedRows, new ->
+        val newSelection = if (selectedRows.contains(new))
+            selectedRows - new
+        else
+            selectedRows + new
+        emit(new)
+        newSelection
+    }
 }
 
 /**
  * TODO open questions
  *  tfoot what will we do with this section of a table?
  *
- * TODO open todos
- *
  */
-// TODO: Special store for config!
 class TableComponent<T> {
     companion object {
         const val prefix = "table"
@@ -432,6 +499,9 @@ class TableComponent<T> {
                 .toMap()
     }
 
+    /**
+     * Central type for dynamic column configuration state
+     */
     data class TableState(
         val order: List<String>,
         val sorting: Pair<String, Sorting>,
@@ -439,7 +509,10 @@ class TableComponent<T> {
 
     val configStore = TableConfigStore()
 
-    var sorter: NaiveSorter<T>? = null
+    var sorter: SimpleSorter<T> = SimpleSorter()
+    fun sorter(value: () -> SimpleSorter<T>) {
+        sorter = value()
+    }
 
     var sortingRenderer: SortingRenderer = UpDownSortingRenderer()
     fun sortingRenderer(value: () -> SortingRenderer) {
@@ -474,6 +547,16 @@ class TableComponent<T> {
     var selectionMode: SelectionMode = SelectionMode.NONE
     fun selectionMode(value: SelectionMode) {
         selectionMode = value
+    }
+
+    val selectionStore: SelectionStore<T> = SelectionStore()
+    class EventsContext<T>(private val selectionStore: SelectionStore<T>) {
+        val selectedRows: Flow<List<T>> = selectionStore.selectRows
+        val selectedRow: Flow<T> = selectionStore.selectRow
+    }
+
+    fun events(expr: EventsContext<T>.() -> Unit) {
+        EventsContext(selectionStore).expr()
     }
 
     var tableStore: RootStore<List<T>> = storeOf(emptyList())
@@ -525,90 +608,6 @@ class TableComponent<T> {
     }
 }
 
-interface SortingRenderer {
-    fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting)
-    fun renderSortingLost(context: Div)
-    fun renderSortingDisabled(context: Div)
-}
-
-class UpDownSortingRenderer() : SortingRenderer {
-    val sortDirectionSelected: Style<BasicParams> = {
-        color { warning }
-    }
-
-    val sortDirectionIcon: Style<BasicParams> = {
-        width { "0.9rem" }
-        height { "0.9rem" }
-        css("cursor:pointer;")
-    }
-
-    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
-        context.apply {
-            icon({
-                sortDirectionIcon()
-                if (sorting == TableComponent.Companion.Sorting.ASC) {
-                    sortDirectionSelected()
-                }
-                size { normal }
-            }) { fromTheme { caretUp } }
-            icon({
-                sortDirectionIcon()
-                if (sorting == TableComponent.Companion.Sorting.DESC) {
-                    sortDirectionSelected()
-                }
-            }) { fromTheme { caretDown } }
-        }
-    }
-
-    override fun renderSortingLost(context: Div) {
-        context.apply {
-            // we need some empty space to click!
-            box({ sortDirectionIcon() }) { }
-        }
-    }
-
-    override fun renderSortingDisabled(context: Div) {
-        // nothing to render!
-    }
-}
-
-class TogglingSymbolSortingRenderer() : SortingRenderer {
-    val sortDirectionSelected: Style<BasicParams> = {
-        color { warning }
-    }
-
-    // TODO: Icon needs bigger size!
-    val sortDirectionIcon: Style<BasicParams> = {
-        width { "2rem" }
-        height { "2rem" }
-        css("cursor:pointer;")
-    }
-
-    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
-        context.apply {
-            when (sorting) {
-                TableComponent.Companion.Sorting.NONE -> renderSortingLost((this))
-                else -> icon({
-                    sortDirectionIcon()
-                    sortDirectionSelected()
-                    size { normal }
-                }) { fromTheme { if (sorting == TableComponent.Companion.Sorting.ASC) caretUp else caretDown } }
-            }
-        }
-    }
-
-    override fun renderSortingLost(context: Div) {
-        context.apply {
-            // we need some empty space to click!
-            box({ sortDirectionIcon() }) { }
-        }
-    }
-
-    override fun renderSortingDisabled(context: Div) {
-        // nothing to render!
-    }
-}
-
 
 fun <T, I> RenderContext.table(
     styling: GridParams.() -> Unit = {},
@@ -622,6 +621,7 @@ fun <T, I> RenderContext.table(
         build()
     }
 
+    // TODO: Put into its own Interface; should wait until events context is finished
     component.prependAdditionalColumns {
         when (component.selectionMode) {
             TableComponent.Companion.SelectionMode.MULTI -> {
@@ -639,6 +639,7 @@ fun <T, I> RenderContext.table(
                                     }
                                 }
                                 events {
+                                    // TODO: Remove ols events handling!
                                     component.selectedAllRowEvents?.let {
                                         changes.states().map { selected ->
                                             if (selected) {
@@ -659,6 +660,7 @@ fun <T, I> RenderContext.table(
                                 id = uniqueId()
                             ) {
                                 if (rowStore != null) {
+                                    // TODO: Remove ols events handling!
                                     checked {
                                         component.selectedRows.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
@@ -694,6 +696,7 @@ fun <T, I> RenderContext.table(
                             ) {
                                 if (rowStore != null) {
                                     checked {
+                                        // TODO: Remove ols events handling!
                                         component.selectedRows.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
                                         }
@@ -761,6 +764,8 @@ fun <T, I> RenderContext.table(
            """
         }
 
+    // TODO: Idea / Proposal: Extract potions of rendering (header, content, footer) into companion object
+    // funtions in order to break function into smaller pieces?
     (::table.styled({
         styling()
     }, tableBaseClass, id, prefix) {}){
@@ -814,9 +819,9 @@ fun <T, I> RenderContext.table(
                 }
             }.renderEach(rowIdProvider) { t ->
                 val rowStore = component.tableStore.sub(t, rowIdProvider)
-                val currentRowStore = rowStore.current
+                val currentRow = rowStore.current
                 val selected = component.selectedRows.map { selectedRows ->
-                    selectedRows.contains(currentRowStore)
+                    selectedRows.contains(currentRow)
                 }
 
                 tr {
@@ -828,9 +833,14 @@ fun <T, I> RenderContext.table(
                         }
                     })
                     if (component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
+                        clicks.events.map {
+                            currentRow
+                        } handledBy component.selectionStore.selectRow
+
+                        // TODO: Remove ols events handling!
                         component.selectedRowEvent?.let {
                             clicks.events.map {
-                                currentRowStore
+                                currentRow
                             } handledBy it
                         }
                     }
