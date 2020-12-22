@@ -7,6 +7,7 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.buildLens
 import dev.fritz2.lenses.format
+import dev.fritz2.styling.params.ColorProperty
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -1144,11 +1145,11 @@ Erika Bolnbach-Bolnbach;2017-08-06;atzleriwona@web.de;0807034829;(07241) 001911;
 Yvette Gröttner B.Sc.;1976-02-08;amies@stiebitz.de;+49(0)5060 233940;+49(0)2684182702;Krokergasse;701;05497;Hainichen
 """.trimIndent()
 
-fun parseCsvPersons(fakeData: String, maxId: Int = 100) = fakeData.split('\n').map {
-    val fields = it.split(';')
+fun parseCsvPersons(fakeData: String, maxId: Int = 100) = fakeData.split('\n').withIndex().map { (index, data) ->
+    val fields = data.split(';')
     Person(
         uniqueId(),
-        Random.nextInt(1, maxId),
+        index,
         fields[0],
         LocalDate.parse(fields[1]),
         fields[2],
@@ -1182,8 +1183,8 @@ val jobSet = listOf(
 )
 
 val fakeData = mapOf(
-    false to parseCsvPersons(veryLargeFakePersonSet),
-    true to parseCsvPersons(extremlyLargeFakePersonSet, 700)
+    false to parseCsvPersons(largeFakePersonSet),
+    true to parseCsvPersons(veryLargeFakePersonSet)
 )
 
 
@@ -1228,7 +1229,6 @@ object Formats {
         }
     )
 }
-
 
 @ExperimentalCoroutinesApi
 fun RenderContext.tableDemo(): Div {
@@ -1282,105 +1282,124 @@ fun RenderContext.tableDemo(): Div {
             paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
         }
 
+        box({
+            width { "1024px" }
+            overflowX { auto }
+        }) {
+            selectionModeStore.data.render { selectionMode ->
+                table(rowIdProvider = Person::id) {
+                    caption(selectionModeStore.data.map { mode ->
+                        "Table with \"${mode.name}\" Selection Mode "
+                    })
+                    tableStore(TableStore)
+                    selectedRows(selectedStore.data)
+                    selectedAllRowEvents = selectedStore.update
+                    selectedRowEvent = selectedStore.toggle
+                    defaultMinWidth = "250px"
+                    selectionMode(selectionMode)
 
-        selectionModeStore.data.render { selectionMode ->
-            table(rowIdProvider = Person::id) {
-                caption(selectionModeStore.data.map { mode ->
-                    "Table with \"${mode.name}\" Selection Mode "
-                })
-                tableStore(TableStore)
-                selectedRows(selectedStore.data)
-                selectedAllRowEvents = selectedStore.update
-                selectedRowEvent = selectedStore.toggle
-                defaultMinWidth = "250px"
-                selectionMode(selectionMode)
-
-                defaultThStyle {
-                    {
-                        background { color { "#1fd257" } }
+                    /*
+                // search {} // for default
+                search {
+                    fun {
+                    // (T, pattern) -> Boolean
+                    // Default: T.toString().contains(pattern)
                     }
+                    immediate { true }
                 }
 
-                columns {
-                    column("ID") {
-                        lens { personIdLens + Formats.intFormat }
-                        width { minmax { "80px" } }
+                events {
+                    selectedRows /* Flow<List<T>> */ handledBy someExternalHandler
+                    selectedRow /* Flow<T> */ handledBy someExternalHandler
+                }
+
+                 */
+
+                    defaultThStyle {
+                        {
+                            background { color { "#1fd257" } }
+                        }
                     }
-                    column("Name") {
-                        lens { fullNameLens }
-                        width { minmax { "2fr" } }
-                    }
-                    column("Job") {
-                        content { renderContext, _, _ ->
-                            renderContext.apply {
-                                select {
-                                    jobs.data.renderEach {
-                                        option {
-                                            value(it)
-                                            +it
+
+                    columns {
+                        column("ID") {
+                            lens { personIdLens + Formats.intFormat }
+                            width { minmax { "80%" } }
+                        }
+                        column("Name") {
+                            lens { fullNameLens }
+                            width { minmax { "2fr" } }
+                        }
+                        column("Job") {
+                            content { renderContext, _, _ ->
+                                renderContext.apply {
+                                    select {
+                                        jobs.data.renderEach {
+                                            option {
+                                                value(it)
+                                                +it
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    column("Birthday") {
-                        lens { birthdayLens + Formats.dateFormat }
-                        width { minmax { "120px" } }
-                        styling {
-                            color { danger }
-                        }
-                        sortBy {
-                            compareBy { person ->
-                                person.birthday
-                            }
-                        }
-                    }
-                    column {
-                        // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
-                        // the data from the table itself!
-                        // ``header`` oder ``head``?
-                        header {
-                            title { "Address" }
+                        column("Birthday") {
+                            lens { birthdayLens + Formats.dateFormat }
+                            width { minmax { "120px" } }
                             styling {
-                                background { color { "purple" } }
-                                fontWeight { bold }
+                                color { danger }
                             }
-                            content { config ->
-                                +config.headerName
-                                icon { fromTheme { fritz2 } }
-                            }
-                        }
-                        width { max { "2fr" } }
-                        content { ctx, _, rowStore ->
-                            rowStore?.let { person ->
-                                val street = person.sub(personAddressLens + streetLens)
-                                val houseNumber = person.sub(personAddressLens + houseNumberLens)
-                                val postalCode = person.sub(personAddressLens + postalCodeLens)
-                                val city = person.sub(personAddressLens + cityLens)
-                                ctx.apply {
-                                    street.data.combine(houseNumber.data) { s, h ->
-                                        "$s $h"
-                                    }.combine(postalCode.data) { a, p ->
-                                        "$a ,$p"
-                                    }.combine(city.data) { a, c ->
-                                        "$a $c"
-                                    }.asText()
+                            sortBy {
+                                compareBy { person ->
+                                    person.birthday
                                 }
-
                             }
                         }
-                        sortBy {
-                            compareBy<Person> { person ->
-                                person.address.city
-                            }.thenBy { person ->
-                                person.address.street
+                        column {
+                            // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
+                            // the data from the table itself!
+                            // ``header`` oder ``head``?
+                            header {
+                                title { "Address with much width" }
+                                styling {
+                                    background { color { "purple" } }
+                                    fontWeight { bold }
+                                }
+                                content { config ->
+                                    +config.headerName
+                                    icon { fromTheme { fritz2 } }
+                                }
+                            }
+                            width { max { "2fr" } }
+                            content { ctx, _, rowStore ->
+                                rowStore?.let { person ->
+                                    val street = person.sub(personAddressLens + streetLens)
+                                    val houseNumber = person.sub(personAddressLens + houseNumberLens)
+                                    val postalCode = person.sub(personAddressLens + postalCodeLens)
+                                    val city = person.sub(personAddressLens + cityLens)
+                                    ctx.apply {
+                                        street.data.combine(houseNumber.data) { s, h ->
+                                            "$s $h"
+                                        }.combine(postalCode.data) { a, p ->
+                                            "$a ,$p"
+                                        }.combine(city.data) { a, c ->
+                                            "$a $c"
+                                        }.asText()
+                                    }
+                                }
+                            }
+                            sortBy {
+                                compareBy<Person> { person ->
+                                    person.address.city
+                                }.thenBy { person ->
+                                    person.address.street
+                                }
                             }
                         }
-                    }
-                    // IDEA: Grouping of columns for saving column space
-                    // No semantic meaning, but visibility improvements
-                    //group("Contact") {
+                        // IDEA: Grouping of columns for saving column space
+                        // No semantic meaning, but visibility improvements
+                        //group("Contact") {
                         column("Phone") {
                             lens { phoneLens }
                             // TODO: Ugly -> Enum must be receiver; but how?
@@ -1388,9 +1407,23 @@ fun RenderContext.tableDemo(): Div {
                         }
                         column("Mobile") { lens { mobileLens } }
                         column("E-Mail") { lens { emailLens } }
-                    //}
+                        //}
+
+                        /*
+                    // Idee
+                    events {
+                        // sorting event vom SortingComponent (UI)
+                        sorting handledBy someSorter
+                        //                someSorter engine
+                        // Frage: Sinnhaftigkeit?
+                        // ggf. wenn Sortieren von außen gesetzt wird.
+                        // Dann wäre aber Event auch von draußen!!!
+                    }
+
+                     */
+                    }
+                    sorter = NaiveSorter()
                 }
-                sorter = NaiveSorter()
             }
         }
     }
