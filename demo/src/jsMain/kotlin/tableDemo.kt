@@ -1361,7 +1361,7 @@ fun RenderContext.tableDemo(): Div {
                             // the data from the table itself!
                             // ``header`` oder ``head``?
                             header {
-                                title { "Address with much width" }
+                                title { "Address" }
                                 styling {
                                     background { color { "purple" } }
                                     fontWeight { bold }
@@ -1408,21 +1408,12 @@ fun RenderContext.tableDemo(): Div {
                         column("Mobile") { lens { mobileLens } }
                         column("E-Mail") { lens { emailLens } }
                         //}
-
-                        /*
-                    // Idee
-                    events {
-                        // sorting event vom SortingComponent (UI)
-                        sorting handledBy someSorter
-                        //                someSorter engine
-                        // Frage: Sinnhaftigkeit?
-                        // ggf. wenn Sortieren von außen gesetzt wird.
-                        // Dann wäre aber Event auch von draußen!!!
                     }
 
-                     */
-                    }
                     sorter = NaiveSorter()
+                    // TODO: Make nicer API for predefined sorting renderer?
+                    // like "variants" for styling?
+                    sortingRenderer { TogglingSymbolSortingRenderer() }
                 }
             }
         }

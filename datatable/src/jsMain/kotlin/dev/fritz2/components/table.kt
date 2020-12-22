@@ -1,6 +1,7 @@
 package dev.fritz2.components
 
 import dev.fritz2.binding.*
+import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.Td
 import dev.fritz2.dom.html.Th
@@ -8,7 +9,6 @@ import dev.fritz2.dom.states
 import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.Lenses
-import dev.fritz2.lenses.buildLens
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.params.BasicParams
 import dev.fritz2.styling.params.GridParams
@@ -17,7 +17,7 @@ import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.Property
 import kotlinx.coroutines.flow.*
-import kotlin.math.exp
+
 
 interface TableSorter<T> {
     fun sortedBy(
@@ -117,6 +117,8 @@ class TableConfigStore : RootStore<TableComponent.TableState>(
     val sortingChanged = handle { state, id: String ->
 
         val new = if (state.sorting.first == id) {
+            // TODO: Create interface to enable different behaviours (becomes important, if sorting over
+            // multiple columns will be available!
             when (state.sorting.second) {
                 TableComponent.Companion.Sorting.ASC -> TableComponent.Companion.Sorting.DESC
                 TableComponent.Companion.Sorting.DESC -> TableComponent.Companion.Sorting.NONE
@@ -199,16 +201,6 @@ class TableComponent<T> {
             """
         )
 
-        val sortDirectionSelected: Style<BasicParams> = {
-            color { warning }
-        }
-
-        val sortDirectionIcon: Style<BasicParams> = {
-            width { "0.9rem" }
-            height { "0.9rem" }
-            css("cursor:pointer;")
-        }
-
         val sorterStyle: Style<BasicParams> = {
             display { inlineGrid }
             paddings { vertical { "0.35rem" } }
@@ -220,7 +212,6 @@ class TableComponent<T> {
                 }
             }
         }
-
 
         enum class SelectionMode {
             NONE,
@@ -450,6 +441,11 @@ class TableComponent<T> {
 
     var sorter: NaiveSorter<T>? = null
 
+    var sortingRenderer: SortingRenderer = UpDownSortingRenderer()
+    fun sortingRenderer(value: () -> SortingRenderer) {
+        sortingRenderer = value()
+    }
+
     var defaultMinWidth: Property = "150px"
     var defaultMaxWidth: Property = "1fr"
 
@@ -528,6 +524,91 @@ class TableComponent<T> {
         }
     }
 }
+
+interface SortingRenderer {
+    fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting)
+    fun renderSortingLost(context: Div)
+    fun renderSortingDisabled(context: Div)
+}
+
+class UpDownSortingRenderer() : SortingRenderer {
+    val sortDirectionSelected: Style<BasicParams> = {
+        color { warning }
+    }
+
+    val sortDirectionIcon: Style<BasicParams> = {
+        width { "0.9rem" }
+        height { "0.9rem" }
+        css("cursor:pointer;")
+    }
+
+    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
+        context.apply {
+            icon({
+                sortDirectionIcon()
+                if (sorting == TableComponent.Companion.Sorting.ASC) {
+                    sortDirectionSelected()
+                }
+                size { normal }
+            }) { fromTheme { caretUp } }
+            icon({
+                sortDirectionIcon()
+                if (sorting == TableComponent.Companion.Sorting.DESC) {
+                    sortDirectionSelected()
+                }
+            }) { fromTheme { caretDown } }
+        }
+    }
+
+    override fun renderSortingLost(context: Div) {
+        context.apply {
+            // we need some empty space to click!
+            box({ sortDirectionIcon() }) { }
+        }
+    }
+
+    override fun renderSortingDisabled(context: Div) {
+        // nothing to render!
+    }
+}
+
+class TogglingSymbolSortingRenderer() : SortingRenderer {
+    val sortDirectionSelected: Style<BasicParams> = {
+        color { warning }
+    }
+
+    // TODO: Icon needs bigger size!
+    val sortDirectionIcon: Style<BasicParams> = {
+        width { "2rem" }
+        height { "2rem" }
+        css("cursor:pointer;")
+    }
+
+    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
+        context.apply {
+            when (sorting) {
+                TableComponent.Companion.Sorting.NONE -> renderSortingLost((this))
+                else -> icon({
+                    sortDirectionIcon()
+                    sortDirectionSelected()
+                    size { normal }
+                }) { fromTheme { if (sorting == TableComponent.Companion.Sorting.ASC) caretUp else caretDown } }
+            }
+        }
+    }
+
+    override fun renderSortingLost(context: Div) {
+        context.apply {
+            // we need some empty space to click!
+            box({ sortDirectionIcon() }) { }
+        }
+    }
+
+    override fun renderSortingDisabled(context: Div) {
+        // nothing to render!
+    }
+}
+
 
 fun <T, I> RenderContext.table(
     styling: GridParams.() -> Unit = {},
@@ -702,33 +783,17 @@ fun <T, I> RenderContext.table(
                             component.defaultThStyle()
 
                         })  {
+                            // Column Header Content
                             colConfig.applyContent(this)
 
                             // Sorting
                             (::div.styled(TableComponent.sorterStyle) {}){
                                 if (component.sorter != null && colConfig._id == sorting.first) {
-                                    // sortiert Zustand
-                                    icon({
-                                        TableComponent.sortDirectionIcon()
-                                        if (sorting.second == TableComponent.Companion.Sorting.ASC) {
-                                            TableComponent.sortDirectionSelected()
-                                        }
-                                        size { normal }
-                                    }) { fromTheme { caretUp } }
-                                    icon({
-                                        TableComponent.sortDirectionIcon()
-                                        if (sorting.second == TableComponent.Companion.Sorting.DESC) {
-                                            TableComponent.sortDirectionSelected()
-                                        }
-                                    }) { fromTheme { caretDown } }
+                                    component.sortingRenderer.renderSortingActive(this, sorting.second)
                                 } else if (colConfig.sorting != TableComponent.Companion.Sorting.DISABLED) {
-                                    // Wenn unsortiert Zustand
-                                    box({
-                                        TableComponent.sortDirectionIcon()
-                                    }) {
-                                    }
+                                    component.sortingRenderer.renderSortingLost(this)
                                 } else {
-                                    // wenn DISABLED Zustand
+                                    component.sortingRenderer.renderSortingDisabled(this)
                                 }
                                 clicks.events.map { colConfig._id } handledBy component.configStore.sortingChanged
                             }
