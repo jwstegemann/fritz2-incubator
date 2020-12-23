@@ -1327,7 +1327,7 @@ fun RenderContext.tableDemo(): Div {
 
                 defaultThStyle {
                     {
-                        background { color { "#1fd257" } }
+                       // background { color { "#1fd257" } }
                     }
                 }
 

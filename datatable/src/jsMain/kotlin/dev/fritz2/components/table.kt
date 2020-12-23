@@ -1,6 +1,9 @@
 package dev.fritz2.components
 
 import dev.fritz2.binding.*
+import dev.fritz2.components.TableComponent.Companion.defaultTd
+import dev.fritz2.components.TableComponent.Companion.defaultTh
+import dev.fritz2.components.TableComponent.Companion.defaultTr
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.Td
@@ -85,6 +88,7 @@ class UpDownSortingRenderer() : SortingRenderer {
         width { "0.9rem" }
         height { "0.9rem" }
         css("cursor:pointer;")
+        color { base }
     }
 
     override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
@@ -214,7 +218,7 @@ class TableComponent<T> {
             prefix,
             """
                 display:grid;
-                min-width: 95vw;
+                //min-width: 100vw;
                 width: auto;
                 flex: 1;
                 display: grid;
@@ -234,49 +238,58 @@ class TableComponent<T> {
                 }
                                 
                 th,
-                td {
-                  padding: 0.5rem 1.4rem .5rem 0.5rem;
+                td {                 
                   &:last-child {
                     border-right: none;
                   }
                 }
-                
-                td {
-                    border-bottom: 1px solid inherit;
-                }
-                
-                th {
-                  position: sticky;
-                  top: 0;
-                  background: rgb(52, 58, 64);
-                  text-align: left;
-                  font-weight: normal;
-                  font-size: 1.1rem;
-                  color: rgb(226, 232, 240);
-                  position: relative;
-                }
-                
-                tr {
-                    td { background: rgba(52, 58, 64, 0.1); }
-                    &:nth-child(even) {
-                        td {  background: rgba(52, 58, 64, 0.2); }
-                    } 
-                    &.selected {
-                    td { background: rgba(255, 193, 7, 0.8) }
-                    }
-                }
             """
         )
 
+
         val sorterStyle: Style<BasicParams> = {
             display { inlineGrid }
-            paddings { vertical { "0.35rem" } }
-            height { "fitContent" }
             position {
                 absolute {
-                    right { "0.5rem" }
-                    top { "0" }
+                    right { "-1.125rem" }
+                    top { "calc(50% -15px)" }
                 }
+            }
+        }
+
+        val defaultTbody: Style<BasicParams> = {
+
+        }
+
+        val defaultTr: Style<BasicParams> = {
+            children("&:nth-child(even) td") {
+                background { color { light_hover } }
+            }
+        }
+
+        val defaultTh: Style<BasicParams> = {
+            background {
+                color { primary }
+            }
+            verticalAlign { middle }
+            color { base }
+            fontSize { normal }
+            position { relative{}}
+            paddings {
+                vertical { smaller }
+                left { smaller }
+                right { large }
+            }
+        }
+
+        val defaultTd: Style<BasicParams> = {
+            paddings {
+                vertical { smaller }
+                left { smaller }
+                right { large }
+            }
+            background {
+                color { disabled }
             }
         }
 
@@ -327,11 +340,11 @@ class TableComponent<T> {
         },
         val stylingHead: Style<BasicParams> = {},
         // TODO: Remove default
-        val contentHead: Th.(tableColumn: TableColumn<T>) -> Unit = { config ->
+        val contentHead: Div.(tableColumn: TableColumn<T>) -> Unit = { config ->
             +config.headerName
         }
     ) {
-        fun applyContent(context: Th) {
+        fun applyContent(context: Div) {
             context.contentHead(this)
         }
     }
@@ -403,11 +416,11 @@ class TableComponent<T> {
                     styling = value
                 }
 
-                var content: Th.(tableColumn: TableColumn<T>) -> Unit = { config ->
+                var content: Div.(tableColumn: TableColumn<T>) -> Unit = { config ->
                     +config.headerName
                 }
 
-                fun content(expression: Th.(tableColumn: TableColumn<T>) -> Unit) {
+                fun content(expression: Div.(tableColumn: TableColumn<T>) -> Unit) {
                     content = expression
                 }
             }
@@ -519,10 +532,16 @@ class TableComponent<T> {
         sortingRenderer = value()
     }
 
-    var defaultMinWidth: Property = "150px"
+    var defaultMinWidth: Property = "130px"
     var defaultMaxWidth: Property = "1fr"
 
-    var defaultTHeadStyle: Style<BasicParams> = {}
+    var defaultTHeadStyle: Style<BasicParams> = {
+        border {
+            width { thin }
+            style { solid }
+            color { dark }
+        }
+    }
     fun defaultTHeadStyle(value: (() -> Style<BasicParams>)) {
         defaultTHeadStyle = value()
     }
@@ -542,7 +561,10 @@ class TableComponent<T> {
         defaultTdStyle = value()
     }
 
-    // TODO defaultTrStyle
+    var defaultTrStyle: Style<BasicParams> = {}
+    fun defaultTrStyle(value: (() -> Style<BasicParams>)) {
+        defaultTrStyle = value()
+    }
 
     var selectionMode: SelectionMode = SelectionMode.NONE
     fun selectionMode(value: SelectionMode) {
@@ -785,28 +807,36 @@ fun <T, I> RenderContext.table(
                 }
                     .renderEach(component.configIdProvider) { (colConfig, sorting) ->
                         (::th.styled(colConfig.stylingHead) {
+                            defaultTh()
                             component.defaultThStyle()
-
                         })  {
-                            // Column Header Content
-                            colConfig.applyContent(this)
+                            flexBox({
+                                height { "100%" }
+                                position { relative {  } }
+                                alignItems { center }
+                            }) {
+                                // Column Header Content
+                                colConfig.applyContent(this)
 
-                            // Sorting
-                            (::div.styled(TableComponent.sorterStyle) {}){
-                                if (component.sorter != null && colConfig._id == sorting.first) {
-                                    component.sortingRenderer.renderSortingActive(this, sorting.second)
-                                } else if (colConfig.sorting != TableComponent.Companion.Sorting.DISABLED) {
-                                    component.sortingRenderer.renderSortingLost(this)
-                                } else {
-                                    component.sortingRenderer.renderSortingDisabled(this)
+                                // Sorting
+                                (::div.styled(TableComponent.sorterStyle) {}){
+                                    if (component.sorter != null && colConfig._id == sorting.first) {
+                                        component.sortingRenderer.renderSortingActive(this, sorting.second)
+                                    } else if (colConfig.sorting != TableComponent.Companion.Sorting.DISABLED) {
+                                        component.sortingRenderer.renderSortingLost(this)
+                                    } else {
+                                        component.sortingRenderer.renderSortingDisabled(this)
+                                    }
+                                    clicks.events.map { colConfig._id } handledBy component.configStore.sortingChanged
                                 }
-                                clicks.events.map { colConfig._id } handledBy component.configStore.sortingChanged
                             }
                         }
                     }
             }
         }
-        tbody {
+        (::tbody.styled {
+            component.defaultTBodyStyle()
+        }) {
             component.tableStore.data.combine(component.configStore.data) { tableData, config ->
                 if (component.sorter == null || config.sorting.first == "") {
                     tableData
@@ -824,7 +854,10 @@ fun <T, I> RenderContext.table(
                     selectedRows.contains(currentRow)
                 }
 
-                tr {
+                (::tr.styled {
+                    defaultTr()
+                    component.defaultTrStyle()
+                }){
                     className(selected.map {
                         if (it && component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
                             "selected"
@@ -846,7 +879,10 @@ fun <T, I> RenderContext.table(
                     }
 
                     component.configStore.data.map { it.order.mapNotNull { component.columns[it] } }.renderEach { ctx ->
-                        (::td.styled(ctx.styling) {}) {
+                        (::td.styled(ctx.styling) {
+                            defaultTd()
+                            component.defaultTdStyle()
+                        }) {
                             if (ctx.lens != null) {
                                 val b = rowStore.sub(ctx.lens)
                                 ctx.content(this, b, rowStore)
