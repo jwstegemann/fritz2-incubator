@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
 import model.Address
 import model.Person
-import kotlin.random.Random
 
 val extremlyLargeFakePersonSet = """
 Christof Wesack;2016-12-25;wojciechwohlgemut@gnatz.com;05697 866667;+49(0)9219016408;Zimmerstr.;5;20803;Erkelenz
@@ -1144,11 +1143,11 @@ Erika Bolnbach-Bolnbach;2017-08-06;atzleriwona@web.de;0807034829;(07241) 001911;
 Yvette Gröttner B.Sc.;1976-02-08;amies@stiebitz.de;+49(0)5060 233940;+49(0)2684182702;Krokergasse;701;05497;Hainichen
 """.trimIndent()
 
-fun parseCsvPersons(fakeData: String, maxId: Int = 100) = fakeData.split('\n').map {
-    val fields = it.split(';')
+fun parseCsvPersons(fakeData: String, maxId: Int = 100) = fakeData.split('\n').withIndex().map { (index, data) ->
+    val fields = data.split(';')
     Person(
         uniqueId(),
-        Random.nextInt(1, maxId),
+        index,
         fields[0],
         LocalDate.parse(fields[1]),
         fields[2],
@@ -1182,8 +1181,8 @@ val jobSet = listOf(
 )
 
 val fakeData = mapOf(
-    false to parseCsvPersons(veryLargeFakePersonSet),
-    true to parseCsvPersons(extremlyLargeFakePersonSet, 700)
+    false to parseCsvPersons(largeFakePersonSet),
+    true to parseCsvPersons(veryLargeFakePersonSet)
 )
 
 
@@ -1228,7 +1227,6 @@ object Formats {
         }
     )
 }
-
 
 @ExperimentalCoroutinesApi
 fun RenderContext.tableDemo(): Div {
@@ -1282,8 +1280,21 @@ fun RenderContext.tableDemo(): Div {
             paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
         }
 
+        val newSelectedStore = storeOf(Person())
+        ul {
+            newSelectedStore.data.render { item ->
+                li { +item.fullName }
+            }
+        }
 
-        selectionModeStore.data.render {
+        val multipleSelectedStore = storeOf(emptyList<Person>())
+        ul {
+            multipleSelectedStore.data.renderEach { item ->
+                li { +item.fullName }
+            }
+        }
+
+        selectionModeStore.data.render { selectionMode ->
             table(rowIdProvider = Person::id) {
                 caption(selectionModeStore.data.map { mode ->
                     "Table with \"${mode.name}\" Selection Mode "
@@ -1292,19 +1303,38 @@ fun RenderContext.tableDemo(): Div {
                 selectedRows(selectedStore.data)
                 selectedAllRowEvents = selectedStore.update
                 selectedRowEvent = selectedStore.toggle
-                selectionMode(selectionModeStore.current)
                 defaultMinWidth = "250px"
+                selectionMode(selectionMode)
+
+                /*
+            // search {} // for default
+            search {
+                fun {
+                // (T, pattern) -> Boolean
+                // Default: T.toString().contains(pattern)
+                }
+                immediate { true }
+            }
+
+             */
+
+                // TODO: Events
+                events {
+                    // TODO Activate if checkboxes are correctly handled!
+                    //selectedRows handledBy multipleSelectedStore.update
+                    selectedRow handledBy newSelectedStore.update
+                }
 
                 defaultThStyle {
                     {
-                        background { color { "#1fd257" } }
+                       // background { color { "#1fd257" } }
                     }
                 }
 
                 columns {
                     column("ID") {
                         lens { personIdLens + Formats.intFormat }
-                        width { minmax { "80px" } }
+                        width { minmax { "80%" } }
                     }
                     column("Name") {
                         lens { fullNameLens }
@@ -1351,7 +1381,7 @@ fun RenderContext.tableDemo(): Div {
                                 icon { fromTheme { fritz2 } }
                             }
                         }
-                        width { max { "4fr" } }
+                        width { max { "2fr" } }
                         content { ctx, _, rowStore ->
                             rowStore?.let { person ->
                                 val street = person.sub(personAddressLens + streetLens)
@@ -1367,7 +1397,6 @@ fun RenderContext.tableDemo(): Div {
                                         "$a $c"
                                     }.asText()
                                 }
-
                             }
                         }
                         sortBy {
@@ -1378,6 +1407,9 @@ fun RenderContext.tableDemo(): Div {
                             }
                         }
                     }
+                    // IDEA: Grouping of columns for saving column space
+                    // No semantic meaning, but visibility improvements
+                    //group("Contact") {
                     column("Phone") {
                         lens { phoneLens }
                         // TODO: Ugly -> Enum must be receiver; but how?
@@ -1385,8 +1417,13 @@ fun RenderContext.tableDemo(): Div {
                     }
                     column("Mobile") { lens { mobileLens } }
                     column("E-Mail") { lens { emailLens } }
+                    //}
                 }
-                sorter = NaiveSorter()
+
+                sorter { SimpleSorter() }
+                // TODO: Make nicer API for predefined sorting renderer?
+                // like "variants" for styling?
+                sortingRenderer { TogglingSymbolSortingRenderer() }
             }
         }
     }

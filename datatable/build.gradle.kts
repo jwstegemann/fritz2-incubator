@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.dokka")
 }
 
+repositories {
+    mavenLocal()
+}
+
 kotlin {
 //    jvm()
     js(LEGACY).browser {
@@ -31,7 +35,7 @@ kotlin {
 
         val commonMain by getting {
             dependencies {
-                api("dev.fritz2:components:0.8-SNAPSHOT")
+                api("dev.fritz2:components:0.9-SNAPSHOT")
             }
         }
 
