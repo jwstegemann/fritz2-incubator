@@ -11,7 +11,8 @@ rootProject.name = "fritz2-incubator"
 
 include(
   "demo",
-  "datatable"
+  "datatable",
+  "progressbar"
 )
 
 enableFeaturePreview("GRADLE_METADATA")
