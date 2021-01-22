@@ -7,7 +7,6 @@ import dev.fritz2.components.TableComponent.Companion.defaultTr
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.Td
-import dev.fritz2.dom.html.Th
 import dev.fritz2.dom.states
 import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
@@ -263,7 +262,7 @@ class TableComponent<T> {
 
         val defaultTr: Style<BasicParams> = {
             children("&:nth-child(even) td") {
-                background { color { light_hover } }
+                background { color { lightEffect } }
             }
         }
 

@@ -5,7 +5,7 @@ plugins {
 }
 
 repositories {
-    maven(url = "https://kotlin.bintray.com/kotlinx/") // soon will be just jcenter()
+    mavenLocal()
 }
 
 kotlin {
@@ -34,11 +34,6 @@ kotlin {
         }
 
         val commonMain by getting {
-            dependencies {
-                implementation(project(":datatable"))
-                implementation(project(":progressbar"))
-                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.1.0")
-            }
         }
 
         val commonTest by getting {
@@ -51,11 +46,32 @@ kotlin {
         }
         val jsMain by getting {
             dependencies {
+                api("dev.fritz2:components:0.9-SNAPSHOT")
             }
         }
         val jsTest by getting {
             dependencies {
                 implementation(kotlin("test-js"))
+            }
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "bintray"
+            val releaseUrl = "https://api.bintray.com/maven/jwstegemann/fritz2/${project.name}/;" +
+                    "publish=0;" + // Never auto-publish to allow override.
+                    "override=1"
+            val snapshotUrl = "https://oss.jfrog.org/artifactory/oss-snapshot-local"
+            val isRelease = System.getenv("GITHUB_EVENT_NAME").equals("release", true)
+
+            url = uri(if (isRelease && !version.toString().endsWith("SNAPSHOT")) releaseUrl else snapshotUrl)
+
+            credentials {
+                username = "jwstegemann"
+                password = System.getenv("BINTRAY_API_KEY")
             }
         }
     }
