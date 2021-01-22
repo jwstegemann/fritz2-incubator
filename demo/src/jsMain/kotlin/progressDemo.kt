@@ -97,22 +97,22 @@ fun RenderContext.progressContent(id: String): Div {
                                 simpleProgress ({
                                     radius { "0px" } // custom style: no rounded corners
                                 }) {
-                                    progress { progressDemoStore.data }
+                                    progress(progressDemoStore.data)
                                     color { secondary }
                                     backgroundColor { secondaryEffect }
-                                    roundedTip { true } // no effect (edges set straight by custom style radius = 0)
+                                    roundedTip(true ) // no effect (edges set straight by custom style radius = 0)
                                     size { small }
                                     label { flowOf("Small, using color and size options, and custom style for corners") }
                                 }
 
                                 simpleProgress {
-                                    progress { progressDemoStore.data }
+                                    progress(progressDemoStore.data)
                                     label { flowOf("Normal size, no options, no custom styles") }
                                 }
 
                                 simpleProgress {
-                                    roundedTip { true }
-                                    progress { progressDemoStore.data }
+                                    roundedTip(true)
+                                    progress(progressDemoStore.data)
                                     size { large }
                                     label { flowOf("Large, rounded progress bar tip") }
                                 }
@@ -176,8 +176,8 @@ fun RenderContext.progressContent(id: String): Div {
                                 """
                             )
                         }) {
-                            roundedTip { true }
-                            progress { autoProgressStore.data }
+                            roundedTip(true)
+                            progress(autoProgressStore.data)
                             size { large }
                             label { flowOf("Rounded, using custom styles to remove css transitions") }
                         }

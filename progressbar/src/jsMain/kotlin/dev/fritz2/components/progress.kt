@@ -71,13 +71,13 @@ class ProgressComponent {
     }
 
     var progress: Flow<Int> = flowOf(0) // @ div progressbar
-    fun progress(value: () -> Flow<Int>) {
-        progress = value()
+    fun progress(value: Flow<Int>) {
+        progress = value
     }
 
     var roundedTip: Style<BasicParams> = { radii { right { "0" } } } // @ div progressbar
-    fun roundedTip(value: () -> Boolean) {
-        if (value())
+    fun roundedTip(value: Boolean) {
+        if (value)
             roundedTip = {}
     }
 
@@ -93,8 +93,8 @@ class ProgressComponent {
     }
 
     var label: Flow<String> = flowOf("")
-    fun label(value: () -> Flow<String>) {
-        label = value()
+    fun label(value: Flow<String>) {
+        label = value
     }
 
     var size: ProgressSizes.() -> Style<BasicParams> = { normal }
