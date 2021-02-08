@@ -13,12 +13,15 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.Lenses
 import dev.fritz2.styling.StyleClass
+import dev.fritz2.styling.name
 import dev.fritz2.styling.params.BasicParams
 import dev.fritz2.styling.params.GridParams
 import dev.fritz2.styling.params.Style
 import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.Property
+import dev.fritz2.styling.theme.Theme
+import dev.fritz2.styling.whenever
 import kotlinx.coroutines.flow.*
 
 
@@ -263,7 +266,7 @@ class TableComponent<T> {
 
         val defaultTr: Style<BasicParams> = {
             children("&:nth-child(even) td") {
-                background { color { light_hover } }
+                background { color { lighterGray } }
             }
         }
 
@@ -289,7 +292,7 @@ class TableComponent<T> {
                 right { large }
             }
             background {
-                color { disabled }
+                color { lightGray }
             }
         }
 
@@ -566,6 +569,16 @@ class TableComponent<T> {
         defaultTrStyle = value()
     }
 
+    var selectedRowStyleClass: StyleClass = staticStyle("selectedRow","""
+        td { background-color: ${Theme().colors.primaryEffect} !important; }        
+    """.trimIndent())
+
+    fun selectedRowStyle(value: Style<BasicParams>) {
+        selectedRowStyleClass = staticStyle("customSelectedRow") {
+            value()
+        }
+    }
+
     var selectionMode: SelectionMode = SelectionMode.NONE
     fun selectionMode(value: SelectionMode) {
         selectionMode = value
@@ -655,11 +668,11 @@ fun <T, I> RenderContext.table(
                     header {
                         content {
                             checkbox({ display { inlineBlock } }, id = uniqueId()) {
-                                checked {
+                                checked (
                                     component.selectedRows.map {
                                         it.isNotEmpty() && it == component.tableStore.current
                                     }
-                                }
+                                )
                                 events {
                                     // TODO: Remove ols events handling!
                                     component.selectedAllRowEvents?.let {
@@ -683,11 +696,11 @@ fun <T, I> RenderContext.table(
                             ) {
                                 if (rowStore != null) {
                                     // TODO: Remove ols events handling!
-                                    checked {
+                                    checked (
                                         component.selectedRows.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
                                         }
-                                    }
+                                    )
                                     events {
                                         component.selectedRowEvent?.let {
                                             clicks.events.map {
@@ -717,12 +730,12 @@ fun <T, I> RenderContext.table(
                                 id = uniqueId()
                             ) {
                                 if (rowStore != null) {
-                                    checked {
+                                    checked (
                                         // TODO: Remove ols events handling!
                                         component.selectedRows.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
                                         }
-                                    }
+                                    )
                                     events {
                                         component.selectedRowEvent?.let {
                                             clicks.events.map {
@@ -858,13 +871,8 @@ fun <T, I> RenderContext.table(
                     defaultTr()
                     component.defaultTrStyle()
                 }){
-                    className(selected.map {
-                        if (it && component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
-                            "selected"
-                        } else {
-                            ""
-                        }
-                    })
+                    className(component.selectedRowStyleClass.whenever(selected).name)
+
                     if (component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
                         clicks.events.map {
                             currentRow

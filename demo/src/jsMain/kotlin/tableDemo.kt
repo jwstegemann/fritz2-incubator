@@ -7,6 +7,8 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.buildLens
 import dev.fritz2.lenses.format
+import dev.fritz2.styling.staticStyle
+import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -1331,99 +1333,111 @@ fun RenderContext.tableDemo(): Div {
                     }
                 }
 
-                columns {
-                    column("ID") {
-                        lens { personIdLens + Formats.intFormat }
-                        width { minmax { "80%" } }
+                selectedRowStyle {
+                    children("td") {
+                        background {
+                            color {
+                                info.important
+                            }
+                        }
                     }
-                    column("Name") {
-                        lens { fullNameLens }
-                        width { minmax { "2fr" } }
-                    }
-                    column("Job") {
-                        content { renderContext, _, _ ->
-                            renderContext.apply {
-                                select {
-                                    jobs.data.renderEach {
-                                        option {
-                                            value(it)
-                                            +it
+                }
+
+
+                    columns {
+                        column("ID") {
+                            lens { personIdLens + Formats.intFormat }
+                            width { minmax { "80%" } }
+                        }
+                        column("Name") {
+                            lens { fullNameLens }
+                            width { minmax { "2fr" } }
+                        }
+                        column("Job") {
+                            content { renderContext, _, _ ->
+                                renderContext.apply {
+                                    select {
+                                        jobs.data.renderEach {
+                                            option {
+                                                value(it)
+                                                +it
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    column("Birthday") {
-                        lens { birthdayLens + Formats.dateFormat }
-                        width { minmax { "120px" } }
-                        styling {
-                            color { danger }
-                        }
-                        sortBy {
-                            compareBy { person ->
-                                person.birthday
-                            }
-                        }
-                    }
-                    column {
-                        // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
-                        // the data from the table itself!
-                        // ``header`` oder ``head``?
-                        header {
-                            title { "Address" }
+                        column("Birthday") {
+                            lens { birthdayLens + Formats.dateFormat }
+                            width { minmax { "120px" } }
                             styling {
-                                background { color { "purple" } }
-                                fontWeight { bold }
+                                color { danger }
                             }
-                            content { config ->
-                                +config.headerName
-                                icon { fromTheme { fritz2 } }
-                            }
-                        }
-                        width { max { "2fr" } }
-                        content { ctx, _, rowStore ->
-                            rowStore?.let { person ->
-                                val street = person.sub(personAddressLens + streetLens)
-                                val houseNumber = person.sub(personAddressLens + houseNumberLens)
-                                val postalCode = person.sub(personAddressLens + postalCodeLens)
-                                val city = person.sub(personAddressLens + cityLens)
-                                ctx.apply {
-                                    street.data.combine(houseNumber.data) { s, h ->
-                                        "$s $h"
-                                    }.combine(postalCode.data) { a, p ->
-                                        "$a ,$p"
-                                    }.combine(city.data) { a, c ->
-                                        "$a $c"
-                                    }.asText()
+                            sortBy {
+                                compareBy { person ->
+                                    person.birthday
                                 }
                             }
                         }
-                        sortBy {
-                            compareBy<Person> { person ->
-                                person.address.city
-                            }.thenBy { person ->
-                                person.address.street
+                        column {
+                            // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
+                            // the data from the table itself!
+                            // ``header`` oder ``head``?
+                            header {
+                                title { "Address" }
+                                styling {
+                                    background { color { "purple" } }
+                                    fontWeight { bold }
+                                }
+                                content { config ->
+                                    +config.headerName
+                                    icon { fromTheme { fritz2 } }
+                                }
+                            }
+                            width { max { "2fr" } }
+                            content { ctx, _, rowStore ->
+                                rowStore?.let { person ->
+                                    val street = person.sub(personAddressLens + streetLens)
+                                    val houseNumber = person.sub(personAddressLens + houseNumberLens)
+                                    val postalCode = person.sub(personAddressLens + postalCodeLens)
+                                    val city = person.sub(personAddressLens + cityLens)
+                                    ctx.apply {
+                                        street.data.combine(houseNumber.data) { s, h ->
+                                            "$s $h"
+                                        }.combine(postalCode.data) { a, p ->
+                                            "$a ,$p"
+                                        }.combine(city.data) { a, c ->
+                                            "$a $c"
+                                        }.asText()
+                                    }
+                                }
+                            }
+                            sortBy {
+                                compareBy<Person> { person ->
+                                    person.address.city
+                                }.thenBy { person ->
+                                    person.address.street
+                                }
                             }
                         }
+                        // IDEA: Grouping of columns for saving column space
+                        // No semantic meaning, but visibility improvements
+                        //group("Contact") {
+                        column("Phone") {
+                            lens { phoneLens }
+                            // TODO: Ugly -> Enum must be receiver; but how?
+                            sorting { TableComponent.Companion.Sorting.DISABLED }
+                        }
+                        column("Mobile") { lens { mobileLens } }
+                        column("E-Mail") { lens { emailLens } }
+                        //}
                     }
-                    // IDEA: Grouping of columns for saving column space
-                    // No semantic meaning, but visibility improvements
-                    //group("Contact") {
-                    column("Phone") {
-                        lens { phoneLens }
-                        // TODO: Ugly -> Enum must be receiver; but how?
-                        sorting { TableComponent.Companion.Sorting.DISABLED }
-                    }
-                    column("Mobile") { lens { mobileLens } }
-                    column("E-Mail") { lens { emailLens } }
-                    //}
-                }
 
-                sorter { SimpleSorter() }
-                // TODO: Make nicer API for predefined sorting renderer?
-                // like "variants" for styling?
-                sortingRenderer { TogglingSymbolSortingRenderer() }
+                    sorter { SimpleSorter() }
+                    // TODO: Make nicer API for predefined sorting renderer?
+                    // like "variants" for styling?
+                    sortingRenderer { TogglingSymbolSortingRenderer() }
+
             }
         }
     }

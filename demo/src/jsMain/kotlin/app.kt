@@ -2,10 +2,8 @@ import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.P
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.render
-import dev.fritz2.dom.mount
 import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.theme.Theme
-import kotlin.math.max
 
 fun RenderContext.showcaseHeader(text: String) {
     (::h1.styled {
@@ -44,7 +42,7 @@ fun RenderContext.componentFrame(init: Div.() -> Unit): Div { //Auslagerung von 
         }
         border {
             width { thin }
-            color { light }
+            color { lightGray }
         }
         radius { larger }
         padding { normal }
@@ -70,11 +68,11 @@ fun RenderContext.contentFrame(init: Div.() -> Unit): Div {
 
 fun main() {
 
-    render {
+    render("#target") {
         h1 { +"fritz incubator - Demo" }
         div {
             tableDemo()
         }
-    }.mount("target")
+    }
 
 }
