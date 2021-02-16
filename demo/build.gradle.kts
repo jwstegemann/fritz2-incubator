@@ -1,11 +1,5 @@
 plugins {
     kotlin("multiplatform")
-    id("maven-publish")
-    id("org.jetbrains.dokka")
-}
-
-repositories {
-    maven(url = "https://kotlin.bintray.com/kotlinx/") // soon will be just jcenter()
 }
 
 kotlin {
@@ -36,6 +30,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(project(":datatable"))
+                implementation("dev.fritz2:components:${rootProject.ext["fritz2Version"]}")
                 implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.1.0")
             }
         }
