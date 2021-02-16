@@ -9,8 +9,8 @@ repositories {
 }
 
 kotlin {
-//    jvm()
-    js(LEGACY).browser {
+    jvm()
+    js(BOTH).browser {
         testTask {
             useKarma {
 //                useSafari()
@@ -35,7 +35,7 @@ kotlin {
 
         val commonMain by getting {
             dependencies {
-                api("dev.fritz2:components:0.9-SNAPSHOT")
+                implementation("dev.fritz2:components:${rootProject.ext["fritz2Version"]}")
             }
         }
 
