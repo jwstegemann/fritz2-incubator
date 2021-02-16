@@ -3,18 +3,7 @@ plugins {
 }
 
 kotlin {
-//    jvm()
-    js(LEGACY).browser {
-        testTask {
-            useKarma {
-//                useSafari()
-//                useFirefox()
-//                useChrome()
-                useChromeHeadless()
-//                usePhantomJS()
-            }
-        }
-    }
+    js().browser()
     sourceSets {
         all {
             languageSettings.apply {
