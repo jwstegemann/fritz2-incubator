@@ -14,10 +14,9 @@ import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.Lenses
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.name
-import dev.fritz2.styling.params.BasicParams
-import dev.fritz2.styling.params.GridParams
-import dev.fritz2.styling.params.Style
-import dev.fritz2.styling.params.styled
+import dev.fritz2.styling.params.*
+import dev.fritz2.styling.params.BorderStyleValues.none
+import dev.fritz2.styling.params.DisplayValues.table
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.Property
 import dev.fritz2.styling.theme.Theme
@@ -82,57 +81,15 @@ interface SortingRenderer {
     fun renderSortingDisabled(context: Div)
 }
 
-class UpDownSortingRenderer() : SortingRenderer {
+class DefaultSortingRenderer() : SortingRenderer {
     val sortDirectionSelected: Style<BasicParams> = {
-        color { warning }
-    }
-
-    val sortDirectionIcon: Style<BasicParams> = {
-        width { "0.9rem" }
-        height { "0.9rem" }
-        css("cursor:pointer;")
         color { base }
     }
 
-    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
-        context.apply {
-            icon({
-                sortDirectionIcon()
-                if (sorting == TableComponent.Companion.Sorting.ASC) {
-                    sortDirectionSelected()
-                }
-                size { normal }
-            }) { fromTheme { caretUp } }
-            icon({
-                sortDirectionIcon()
-                if (sorting == TableComponent.Companion.Sorting.DESC) {
-                    sortDirectionSelected()
-                }
-            }) { fromTheme { caretDown } }
-        }
-    }
-
-    override fun renderSortingLost(context: Div) {
-        context.apply {
-            // we need some empty space to click!
-            box({ sortDirectionIcon() }) { }
-        }
-    }
-
-    override fun renderSortingDisabled(context: Div) {
-        // nothing to render!
-    }
-}
-
-class TogglingSymbolSortingRenderer() : SortingRenderer {
-    val sortDirectionSelected: Style<BasicParams> = {
-        color { warning }
-    }
-
-    // TODO: Icon needs bigger size!
     val sortDirectionIcon: Style<BasicParams> = {
         width { "2rem" }
         height { "2rem" }
+        color { gray }
         css("cursor:pointer;")
     }
 
@@ -144,7 +101,7 @@ class TogglingSymbolSortingRenderer() : SortingRenderer {
                     sortDirectionIcon()
                     sortDirectionSelected()
                     size { normal }
-                }) { fromTheme { if (sorting == TableComponent.Companion.Sorting.ASC) caretUp else caretDown } }
+                }) { fromTheme { if (sorting == TableComponent.Companion.Sorting.ASC) arrowUp else arrowDown } }
             }
         }
     }
@@ -152,7 +109,10 @@ class TogglingSymbolSortingRenderer() : SortingRenderer {
     override fun renderSortingLost(context: Div) {
         context.apply {
             // we need some empty space to click!
-            box({ sortDirectionIcon() }) { }
+            icon({
+                sortDirectionIcon()
+                size { normal }
+            }) { fromTheme { sort } }
         }
     }
 
@@ -207,6 +167,12 @@ class SelectionStore<T> : RootStore<List<T>>(emptyList()) {
         emit(new)
         newSelection
     }
+
+    val dbClickedRow = handleAndEmit<T, T> { selectedRows, new ->
+        emit(new)
+        selectedRows
+    }
+
 }
 
 /**
@@ -221,8 +187,7 @@ class TableComponent<T> {
             prefix,
             """
                 display:grid;
-                //min-width: 100vw;
-                width: auto;
+                min-width:100vw;
                 flex: 1;
                 display: grid;
                 border-collapse: collapse;
@@ -251,7 +216,7 @@ class TableComponent<T> {
 
 
         val sorterStyle: Style<BasicParams> = {
-            display { inlineGrid }
+            display { flex }
             position {
                 absolute {
                     right { "-1.125rem" }
@@ -277,12 +242,20 @@ class TableComponent<T> {
             verticalAlign { middle }
             color { base }
             fontSize { normal }
-            position { relative{}}
+            position { relative {} }
             paddings {
                 vertical { smaller }
                 left { smaller }
                 right { large }
             }
+            borders {
+                right {
+                    width { "1px" }
+                    style { solid }
+                    color { lightGray }
+                }
+            }
+
         }
 
         val defaultTd: Style<BasicParams> = {
@@ -530,13 +503,10 @@ class TableComponent<T> {
         sorter = value()
     }
 
-    var sortingRenderer: SortingRenderer = UpDownSortingRenderer()
+    var sortingRenderer: SortingRenderer = DefaultSortingRenderer()
     fun sortingRenderer(value: () -> SortingRenderer) {
         sortingRenderer = value()
     }
-
-    var defaultMinWidth: Property = "130px"
-    var defaultMaxWidth: Property = "1fr"
 
     var defaultTHeadStyle: Style<BasicParams> = {
         border {
@@ -545,6 +515,7 @@ class TableComponent<T> {
             color { dark }
         }
     }
+
     fun defaultTHeadStyle(value: (() -> Style<BasicParams>)) {
         defaultTHeadStyle = value()
     }
@@ -569,9 +540,11 @@ class TableComponent<T> {
         defaultTrStyle = value()
     }
 
-    var selectedRowStyleClass: StyleClass = staticStyle("selectedRow","""
+    var selectedRowStyleClass: StyleClass = staticStyle(
+        "selectedRow", """
         td { background-color: ${Theme().colors.primaryEffect} !important; }        
-    """.trimIndent())
+    """.trimIndent()
+    )
 
     fun selectedRowStyle(value: Style<BasicParams>) {
         selectedRowStyleClass = staticStyle("customSelectedRow") {
@@ -585,9 +558,11 @@ class TableComponent<T> {
     }
 
     val selectionStore: SelectionStore<T> = SelectionStore()
-    class EventsContext<T>(private val selectionStore: SelectionStore<T>) {
-        val selectedRows: Flow<List<T>> = selectionStore.selectRows
+
+    class EventsContext<T>(selectionStore: SelectionStore<T>) {
+        val selectedRows: Flow<List<T>> = selectionStore.data
         val selectedRow: Flow<T> = selectionStore.selectRow
+        val dbClicks: Flow<T> = selectionStore.dbClickedRow
     }
 
     fun events(expr: EventsContext<T>.() -> Unit) {
@@ -604,10 +579,6 @@ class TableComponent<T> {
         selectedRows = value
     }
 
-    var selectedRowEvent: SimpleHandler<T>? = null
-    var selectedAllRowEvents: SimpleHandler<List<T>>? = null
-
-
     var captionPlacement: CaptionPlacement = CaptionPlacement.TOP
     fun captionPlacement(value: CaptionPlacement) {
         captionPlacement = value
@@ -616,13 +587,7 @@ class TableComponent<T> {
     var caption: (RenderContext.() -> Unit)? = null
     fun caption(value: (RenderContext.() -> Unit)) {
         caption = {
-            (::caption.styled() {
-                if (captionPlacement == CaptionPlacement.TOP) {
-                    css("grid-area:header;")
-                } else {
-                    css("grid-area:footer;")
-                }
-            }){ value() }
+            box { value() }
         }
     }
 
@@ -632,19 +597,280 @@ class TableComponent<T> {
 
     fun caption(value: Flow<String>) {
         caption = {
-            (::caption.styled() {
-                if (captionPlacement == CaptionPlacement.TOP) {
-                    css("grid-area:header;")
-                } else {
-                    css("grid-area:footer;")
-                }
-            }){ value.asText() }
+            box { value.asText() }
         }
     }
+
+    class TableOptions {
+        val fixedHeader = ComponentProperty(true)
+        val fixedHeaderHeight = ComponentProperty<Property>("37px")
+        val width = ComponentProperty<Property?>("100%")
+        val maxWidth = ComponentProperty<Property?>(null)
+        val height = ComponentProperty<Property?>(null)
+        val maxHeight = ComponentProperty<Property?>("97vh")
+        val cellMinWidth = ComponentProperty<Property>("130px")
+        val cellMaxWidth = ComponentProperty<Property>("1fr")
+    }
+
+
+    var options = TableOptions()
+    fun options(value: TableOptions.() -> Unit) {
+        options = TableOptions().apply { value() }
+    }
+
+
+    fun <I> renderTable(
+        styling: GridParams.() -> Unit,
+        baseClass: StyleClass?,
+        id: String?,
+        prefix: String,
+        rowIdProvider: (T) -> I,
+        RenderContext: RenderContext,
+    ) {
+        val component = this
+        val tableBaseClass = if (baseClass != null) {
+            baseClass + staticCss
+        } else {
+            staticCss
+        }
+
+        val gridCols = component.configStore.data
+            .map { (order, sorting) ->
+                var minmax = ""
+                var header = ""
+                var footer = ""
+                var main = ""
+
+                order.forEach { itemId ->
+                    this.columns[itemId]?.let {
+                        val min = it.minWidth ?: this.options.cellMinWidth.value
+                        val max = it.maxWidth ?: this.options.cellMaxWidth.value
+                        minmax += "\n" + if (min == max) {
+                            "$max"
+                        } else {
+                            if (!min.contains(Regex("px|%"))) {
+                                "minmax($this.defaultMinWidth, $max)"
+                            } else {
+                                "minmax($min, $max)"
+                            }
+                        }
+                    }
+                }
+
+                """
+                    grid-template-columns: $minmax;                
+                    grid-template-rows: auto;
+                   """
+            }
+
+
+        if (component.options.fixedHeader.value) {
+            renderFixedHeaderTable(
+                styling,
+                tableBaseClass,
+                id,
+                prefix,
+                rowIdProvider,
+                gridCols,
+                RenderContext
+            )
+        } else {
+            renderSimpleTable(
+                styling,
+                tableBaseClass,
+                id,
+                prefix,
+                rowIdProvider,
+                gridCols,
+                RenderContext
+            )
+        }
+    }
+
+    private fun <I> renderFixedHeaderTable(
+        styling: GridParams.() -> Unit,
+        baseClass: StyleClass?,
+        id: String?,
+        prefix: String,
+        rowIdProvider: (T) -> I,
+        gridCols: Flow<String>,
+        RenderContext: RenderContext
+    ) {
+        val component = this
+        RenderContext.apply {
+            (::table.styled({
+                styling()
+                height { component.options.fixedHeaderHeight.value }
+                overflow { hidden }
+                position {
+                    sticky {
+                        top { "0" }
+                    }
+                }
+            }, baseClass, "$id-fixedHeader", "$prefix-fixedHeader") {}){
+                attr("style", gridCols)
+                renderTHead({}, this)
+                renderTBody({
+                    css("visibility:hidden")
+                }, rowIdProvider, this)
+            }
+
+            (::table.styled({
+                styling()
+                margins {
+                    top { "-${component.options.fixedHeaderHeight.value}" }
+                }
+
+                height { "fit-content" }
+            }, baseClass, id, prefix) {}){
+                attr("style", gridCols)
+                renderTHead({
+                    css("visibility:hidden")
+                }, this)
+                renderTBody({}, rowIdProvider, this)
+
+            }
+        }
+    }
+
+    private fun <I> renderSimpleTable(
+        styling: GridParams.() -> Unit,
+        baseClass: StyleClass?,
+        id: String?,
+        prefix: String,
+        rowIdProvider: (T) -> I,
+        gridCols: Flow<String>,
+        RenderContext: RenderContext
+    ) {
+
+        RenderContext.apply {
+            (::table.styled({
+                styling()
+            }, baseClass, id, prefix) {}){
+                attr("style", gridCols)
+                renderTHead({}, this)
+                renderTBody({}, rowIdProvider, this)
+            }
+        }
+    }
+
+    private fun renderTHead(
+        styling: GridParams.() -> Unit,
+        RenderContext: RenderContext
+    ) {
+        val component = this
+
+        RenderContext.apply {
+            (::thead.styled() {
+                component.defaultTHeadStyle()
+                styling()
+            }) {
+                tr {
+                    component.configStore.data.map {
+                        it.order.map { col ->
+                            if (col == it.sorting.first) component.columns[col]!! to it.sorting else
+                                component.columns[col]!! to ("" to TableComponent.Companion.Sorting.NONE)
+                        }
+                    }
+                        .renderEach(component.configIdProvider) { (colConfig, sorting) ->
+                            (::th.styled(colConfig.stylingHead) {
+                                defaultTh()
+                                component.defaultThStyle()
+                            })  {
+                                flexBox({
+                                    height { "100%" }
+                                    position { relative { } }
+                                    alignItems { center }
+                                }) {
+                                    // Column Header Content
+                                    colConfig.applyContent(this)
+
+                                    // Sorting
+                                    (::div.styled(TableComponent.sorterStyle) {}){
+                                        if (component.sorter != null && colConfig._id == sorting.first) {
+                                            component.sortingRenderer.renderSortingActive(this, sorting.second)
+                                        } else if (colConfig.sorting != TableComponent.Companion.Sorting.DISABLED) {
+                                            component.sortingRenderer.renderSortingLost(this)
+                                        } else {
+                                            component.sortingRenderer.renderSortingDisabled(this)
+                                        }
+                                        clicks.events.map { colConfig._id } handledBy component.configStore.sortingChanged
+                                    }
+                                }
+                            }
+                        }
+                }
+            }
+        }
+    }
+
+    private fun <I> renderTBody(
+        styling: GridParams.() -> Unit,
+        rowIdProvider: (T) -> I,
+        RenderContext: RenderContext
+    ) {
+        val component = this
+        RenderContext.apply {
+            (::tbody.styled {
+                component.defaultTBodyStyle()
+                styling()
+            }) {
+                component.tableStore.data.combine(component.configStore.data) { tableData, config ->
+                    if (component.sorter == null || config.sorting.first == "") {
+                        tableData
+                    } else {
+                        component.sorter!!.sortedBy(
+                            tableData,
+                            component.columns[config.sorting.first]!!,
+                            config.sorting.second
+                        )
+                    }
+                }.renderEach(rowIdProvider) { t ->
+                    val rowStore = component.tableStore.sub(t, rowIdProvider)
+                    val currentRow = rowStore.current
+                    val selected = component.selectedRows.map { selectedRows ->
+                        selectedRows.contains(currentRow)
+                    }
+
+                    (::tr.styled {
+                        defaultTr()
+                        component.defaultTrStyle()
+                    }){
+                        className(component.selectedRowStyleClass.whenever(selected).name)
+
+                        if (component.selectionMode == Companion.SelectionMode.SINGLE) {
+                            clicks.events.map {
+                                currentRow
+                            } handledBy component.selectionStore.selectRow
+                        }
+
+                        dblclicks.events.map { currentRow } handledBy component.selectionStore.dbClickedRow
+
+                        component.configStore.data.map { it.order.mapNotNull { component.columns[it] } }
+                            .renderEach { ctx ->
+                                (::td.styled(ctx.styling) {
+                                    defaultTd()
+                                    component.defaultTdStyle()
+                                }) {
+                                    if (ctx.lens != null) {
+                                        val b = rowStore.sub(ctx.lens)
+                                        ctx.content(this, b, rowStore)
+                                    } else {
+                                        ctx.content(this, null, rowStore)
+                                    }
+                                }
+                            }
+                    }
+                }
+            }
+        }
+
+
+    }
+
 }
 
-
-fun <T, I> RenderContext.table(
+fun <T, I> RenderContext.dataTable(
     styling: GridParams.() -> Unit = {},
     baseClass: StyleClass? = null,
     id: String? = null,
@@ -668,22 +894,21 @@ fun <T, I> RenderContext.table(
                     header {
                         content {
                             checkbox({ display { inlineBlock } }, id = uniqueId()) {
-                                checked (
+                                checked(
                                     component.selectedRows.map {
                                         it.isNotEmpty() && it == component.tableStore.current
                                     }
                                 )
                                 events {
-                                    // TODO: Remove ols events handling!
-                                    component.selectedAllRowEvents?.let {
-                                        changes.states().map { selected ->
-                                            if (selected) {
-                                                component.tableStore.current
-                                            } else {
-                                                emptyList()
-                                            }
-                                        } handledBy it
-                                    }
+
+                                    changes.states().map { selected ->
+                                        if (selected) {
+                                            component.tableStore.current
+                                        } else {
+                                            emptyList()
+                                        }
+                                    } handledBy component.selectionStore.update
+
                                 }
                             }
                         }
@@ -695,19 +920,15 @@ fun <T, I> RenderContext.table(
                                 id = uniqueId()
                             ) {
                                 if (rowStore != null) {
-                                    // TODO: Remove ols events handling!
-                                    checked (
-                                        component.selectedRows.map { selectedRows ->
+                                    checked(
+                                        component.selectionStore.data.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
                                         }
                                     )
                                     events {
-                                        component.selectedRowEvent?.let {
-                                            clicks.events.map {
-                                                rowStore.current
-                                            } handledBy it
-                                        }
-
+                                        clicks.events.map {
+                                            rowStore.current
+                                        } handledBy component.selectionStore.selectRows
                                     }
                                 }
 
@@ -730,19 +951,17 @@ fun <T, I> RenderContext.table(
                                 id = uniqueId()
                             ) {
                                 if (rowStore != null) {
-                                    checked (
+                                    checked(
                                         // TODO: Remove ols events handling!
-                                        component.selectedRows.map { selectedRows ->
+                                        component.selectionStore.data.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
                                         }
                                     )
                                     events {
-                                        component.selectedRowEvent?.let {
-                                            clicks.events.map {
-                                                rowStore.current
-                                            } handledBy it
-                                        }
 
+                                        clicks.events.map {
+                                            rowStore.current
+                                        } handledBy component.selectionStore.selectRow
                                     }
                                 }
                             }
@@ -763,150 +982,35 @@ fun <T, I> RenderContext.table(
         )
     )
 
-    val tableBaseClass = if (baseClass != null) {
-        baseClass + TableComponent.staticCss
-    } else {
-        TableComponent.staticCss
+
+    if (component.captionPlacement == TableComponent.Companion.CaptionPlacement.TOP) {
+        component.caption?.invoke(this)
     }
 
-    val gridCols = component.configStore.data
-        .map { (order, sorting) ->
-            var minmax = ""
-            var header = ""
-            var footer = ""
-            var main = ""
+    (::div.styled {
+        component.options.width.value?.also { width { it } }
+        component.options.height.value?.also { height { it } }
+        component.options.maxHeight.value?.also { maxHeight { it }  }
+        component.options.maxWidth.value?.also {  maxWidth { it }  }
 
-
-            order.forEach { itemId ->
-                component.columns[itemId]?.let {
-                    val min = it.minWidth ?: component.defaultMinWidth
-                    val max = it.maxWidth ?: component.defaultMaxWidth
-
-                    minmax += "minmax($min, $max)"
-                    main += "main "
-                    footer += "footer "
-                    header += "header "
-                }
-            }
-
-            """
-            grid-template-columns: $minmax;                
-            grid-template-rows: auto;
-            grid-template-areas:
-           "$header"
-           "$main"
-           "$footer";
-           """
+        if (component.options.height.value != null || component.options.width.value != null) {
+            overflow { auto }
         }
 
-    // TODO: Idea / Proposal: Extract potions of rendering (header, content, footer) into companion object
-    // funtions in order to break function into smaller pieces?
-    (::table.styled({
-        styling()
-    }, tableBaseClass, id, prefix) {}){
-        attr("style", gridCols)
-        if (component.captionPlacement == TableComponent.Companion.CaptionPlacement.TOP) {
-            component.caption?.invoke(this)
-        }
-        (::thead.styled() {
-            component.defaultTHeadStyle()
-        }) {
-            tr {
-                component.configStore.data.map {
-                    it.order.map { col ->
-                        if (col == it.sorting.first) component.columns[col]!! to it.sorting else
-                            component.columns[col]!! to ("" to TableComponent.Companion.Sorting.NONE)
-                    }
-                }
-                    .renderEach(component.configIdProvider) { (colConfig, sorting) ->
-                        (::th.styled(colConfig.stylingHead) {
-                            defaultTh()
-                            component.defaultThStyle()
-                        })  {
-                            flexBox({
-                                height { "100%" }
-                                position { relative {  } }
-                                alignItems { center }
-                            }) {
-                                // Column Header Content
-                                colConfig.applyContent(this)
+        css("overscroll-behavior: contain")
+        position { relative { } }
+    }) {
 
-                                // Sorting
-                                (::div.styled(TableComponent.sorterStyle) {}){
-                                    if (component.sorter != null && colConfig._id == sorting.first) {
-                                        component.sortingRenderer.renderSortingActive(this, sorting.second)
-                                    } else if (colConfig.sorting != TableComponent.Companion.Sorting.DISABLED) {
-                                        component.sortingRenderer.renderSortingLost(this)
-                                    } else {
-                                        component.sortingRenderer.renderSortingDisabled(this)
-                                    }
-                                    clicks.events.map { colConfig._id } handledBy component.configStore.sortingChanged
-                                }
-                            }
-                        }
-                    }
-            }
-        }
-        (::tbody.styled {
-            component.defaultTBodyStyle()
-        }) {
-            component.tableStore.data.combine(component.configStore.data) { tableData, config ->
-                if (component.sorter == null || config.sorting.first == "") {
-                    tableData
-                } else {
-                    component.sorter!!.sortedBy(
-                        tableData,
-                        component.columns[config.sorting.first]!!,
-                        config.sorting.second
-                    )
-                }
-            }.renderEach(rowIdProvider) { t ->
-                val rowStore = component.tableStore.sub(t, rowIdProvider)
-                val currentRow = rowStore.current
-                val selected = component.selectedRows.map { selectedRows ->
-                    selectedRows.contains(currentRow)
-                }
 
-                (::tr.styled {
-                    defaultTr()
-                    component.defaultTrStyle()
-                }){
-                    className(component.selectedRowStyleClass.whenever(selected).name)
+        component.renderTable(styling, baseClass, id, prefix, rowIdProvider, this)
 
-                    if (component.selectionMode == TableComponent.Companion.SelectionMode.SINGLE) {
-                        clicks.events.map {
-                            currentRow
-                        } handledBy component.selectionStore.selectRow
 
-                        // TODO: Remove ols events handling!
-                        component.selectedRowEvent?.let {
-                            clicks.events.map {
-                                currentRow
-                            } handledBy it
-                        }
-                    }
+    }
 
-                    component.configStore.data.map { it.order.mapNotNull { component.columns[it] } }.renderEach { ctx ->
-                        (::td.styled(ctx.styling) {
-                            defaultTd()
-                            component.defaultTdStyle()
-                        }) {
-                            if (ctx.lens != null) {
-                                val b = rowStore.sub(ctx.lens)
-                                ctx.content(this, b, rowStore)
-                            } else {
-                                ctx.content(this, null, rowStore)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (component.captionPlacement == TableComponent.Companion.CaptionPlacement.BOTTOM) {
-                component.caption?.invoke(this)
-            }
-
-        }
+    if (component.captionPlacement == TableComponent.Companion.CaptionPlacement.BOTTOM) {
+        component.caption?.invoke(this)
     }
 
 }
+
+
