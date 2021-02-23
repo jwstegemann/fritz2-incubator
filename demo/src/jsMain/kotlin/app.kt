@@ -67,12 +67,7 @@ fun RenderContext.contentFrame(init: Div.() -> Unit): Div {
 }
 
 fun main() {
-
     render("#target") {
-        h1 { +"fritz incubator - Demo" }
-        div {
-            tableDemo()
-        }
+        tableDemo()
     }
-
 }
