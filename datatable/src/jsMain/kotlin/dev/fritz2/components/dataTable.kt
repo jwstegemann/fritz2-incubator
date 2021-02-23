@@ -89,7 +89,7 @@ class DefaultSortingRenderer() : SortingRenderer {
     val sortDirectionIcon: Style<BasicParams> = {
         width { "2rem" }
         height { "2rem" }
-        color { gray }
+        color { lightGray }
         css("cursor:pointer;")
     }
 
@@ -230,14 +230,14 @@ class TableComponent<T> {
         }
 
         val defaultTr: Style<BasicParams> = {
-            children("&:nth-child(even) td") {
-                background { color { lighterGray } }
+            children("&:nth-child(odd) td") {
+                background { color { lightestGray } }
             }
         }
 
         val defaultTh: Style<BasicParams> = {
             background {
-                color { primary }
+                color {  dark }
             }
             verticalAlign { middle }
             color { base }
@@ -252,7 +252,7 @@ class TableComponent<T> {
                 right {
                     width { "1px" }
                     style { solid }
-                    color { lightGray }
+                    color { darkerGray }
                 }
             }
 
@@ -265,7 +265,14 @@ class TableComponent<T> {
                 right { large }
             }
             background {
-                color { lightGray }
+                color { base }
+            }
+            borders {
+                right {
+                    width { "1px" }
+                    style { solid }
+                    color { darkerGray }
+                }
             }
         }
 

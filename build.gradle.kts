@@ -9,6 +9,7 @@ allprojects {
     //manage common setting and dependencies
     repositories {
         //FIXME: remove after release
+        //mavenLocal()
         maven("https://oss.jfrog.org/artifactory/jfrog-dependencies")
         mavenCentral()
         jcenter()
