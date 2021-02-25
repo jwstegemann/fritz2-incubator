@@ -53,8 +53,6 @@ data class Column<T>(
     }
 }
 
-typealias SortingPlan<T> = List<Pair<Column<T>, Sorting>>
-
 data class ColumnIdSorting(
     val id: String?,
     val strategy: Sorting = Sorting.NONE
@@ -64,28 +62,31 @@ data class ColumnIdSorting(
     }
 }
 
+typealias SortingPlan = List<ColumnIdSorting>
+typealias ColumnSortingPlan<T> = List<Pair<Column<T>, Sorting>>
+
 /*
 Sortieren basiert auf drei unabhängigen Komponenten:
-- Sortierkonfiguration + Änderung [fehlt noch!] SortingPlanReducer
-- Rendern des Sortierbedienelements [SortingRenderer]
-- Durchführung der Sortierung [TableSorter<T>]
+- Sortierkonfiguration + Änderung [fehlt noch!] SortingPlanReducer: StateStore hält SortingPlan und berechnet neuen, wenn Column (per Id) aktiviert wird
+- Rendern des Sortierbedienelements [SortingRenderer] rendert in Tabellenkopf Sorting Steuerelemente / Anzeigen.
+- Durchführung der Sortierung [Sorter<T>] arbeitet nach SortingPlan
  */
 
 
 interface RowSorter<T> {
     fun sortedBy(
         rows: List<T>,
-        sortingPlan: SortingPlan<T>
+        columnSortingPlan: ColumnSortingPlan<T>
     ): List<T>
 }
 
-class SimpleRowSorter<T> : RowSorter<T> {
+class OneColumnSorter<T> : RowSorter<T> {
     override fun sortedBy(
         rows: List<T>,
-        sortingPlan: SortingPlan<T>
+        columnSortingPlan: ColumnSortingPlan<T>
     ): List<T> =
-        if (sortingPlan.isNotEmpty()) {
-            val (config, sorting) = sortingPlan.first()
+        if (columnSortingPlan.isNotEmpty()) {
+            val (config, sorting) = columnSortingPlan.first()
             if (
                 sorting != Sorting.DISABLED
                 && sorting != Sorting.NONE
@@ -175,47 +176,51 @@ class SingleArrowSortingRenderer() : SortingRenderer {
  */
 data class State(
     val order: List<String>,
-    val sorting: List<ColumnIdSorting>,
+    val sortingPlan: SortingPlan,
 ) {
     fun <T> orderedColumnsWithSorting(columns: Map<String, Column<T>>):
             List<Pair<Column<T>, ColumnIdSorting>> =
         order.map { colId ->
-            val sortingIndexForCurrentColumn = sorting.indexOfFirst { (id, _) -> id == colId }
+            val sortingIndexForCurrentColumn = sortingPlan.indexOfFirst { (id, _) -> id == colId }
             if (sortingIndexForCurrentColumn != -1) {
-                columns[colId]!! to sorting[sortingIndexForCurrentColumn]
+                columns[colId]!! to sortingPlan[sortingIndexForCurrentColumn]
             } else {
                 columns[colId]!! to ColumnIdSorting.noSorting()
             }
         }
 
-    fun <T> sortingPlan(columns: Map<String, Column<T>>): List<Pair<Column<T>, Sorting>> =
-        sorting.map { (colId, sorting) -> columns[colId]!! to sorting }
+    fun <T> columnSortingPlan(columns: Map<String, Column<T>>): ColumnSortingPlan<T> =
+        sortingPlan.map { (colId, sorting) -> columns[colId]!! to sorting }
 }
 
+interface SortingPlanReducer {
+    fun reduce(sortingPlan: SortingPlan, activatedColumnId: String): SortingPlan
+}
 
-class StateStore : RootStore<State>(
+class TogglingSortingPlanReducer : SortingPlanReducer {
+    override fun reduce(sortingPlan: SortingPlan, activatedColumnId: String): SortingPlan =
+        listOf(
+            ColumnIdSorting(
+                activatedColumnId,
+                if (sortingPlan.isNotEmpty() && sortingPlan.first().id == activatedColumnId) {
+                    when (sortingPlan.first().strategy) {
+                        Sorting.ASC -> Sorting.DESC
+                        Sorting.DESC -> Sorting.NONE
+                        else -> Sorting.ASC
+                    }
+                } else {
+                    Sorting.ASC
+                }
+            )
+        )
+}
+
+class StateStore(private val sortingPlanReducer: SortingPlanReducer) : RootStore<State>(
     State(emptyList(), emptyList())
 ) {
 
-    val sortingChanged = handle { state, id: String ->
-
-        val new = if (state.sorting.isNotEmpty()) {
-            if (state.sorting.first().id == id) {
-                // TODO: Create interface to enable different behaviours (becomes important, if sorting over
-                //  multiple columns will be available!
-                when (state.sorting.first().strategy) {
-                    Sorting.ASC -> Sorting.DESC
-                    Sorting.DESC -> Sorting.NONE
-                    else -> Sorting.ASC
-                }
-            } else {
-                Sorting.ASC
-            }
-        } else {
-            Sorting.ASC
-        }
-
-        state.copy(sorting = listOf(ColumnIdSorting(id, new)))
+    val sortingChanged = handle { state, columnId: String ->
+        state.copy(sortingPlan = sortingPlanReducer.reduce(state.sortingPlan, columnId))
     }
 
     // TODO: Add handler for ordering / hiding or showing columns (change ``order`` property)

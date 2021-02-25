@@ -297,13 +297,6 @@ class TableComponent<T> {
                 .toMap()
     }
 
-
-    val stateStore = StateStore()
-
-    val sorter = ComponentProperty<RowSorter<T>>(SimpleRowSorter())
-
-    val sortingRenderer = ComponentProperty<SortingRenderer>(SingleArrowSortingRenderer())
-
     var defaultTHeadStyle: Style<BasicParams> = {
         border {
             width { thin }
@@ -397,7 +390,19 @@ class TableComponent<T> {
         }
     }
 
-    class TableOptions {
+    class Options<T> {
+
+        class Sorting<T> {
+            val reducer = ComponentProperty<SortingPlanReducer>(TogglingSortingPlanReducer())
+            val sorter = ComponentProperty<RowSorter<T>>(OneColumnSorter())
+            val renderer = ComponentProperty<SortingRenderer>(SingleArrowSortingRenderer())
+        }
+
+        internal var sorting = Sorting<T>()
+        fun sorting(value: Sorting<T>.() -> Unit) {
+            sorting = Sorting<T>().apply { value() }
+        }
+
         val fixedHeader = ComponentProperty(true)
         val fixedHeaderHeight = ComponentProperty<Property>("37px")
         val width = ComponentProperty<Property?>("100%")
@@ -409,11 +414,13 @@ class TableComponent<T> {
     }
 
 
-    var options = TableOptions()
-    fun options(value: TableOptions.() -> Unit) {
-        options = TableOptions().apply { value() }
+    var options = Options<T>()
+    fun options(value: Options<T>.() -> Unit) {
+        options = Options<T>().apply { value() }
     }
 
+    // TODO: make private, if render is in Component
+    var stateStore = StateStore(options.sorting.reducer.value)
 
     fun <I> renderTable(
         styling: GridParams.() -> Unit,
@@ -579,11 +586,11 @@ class TableComponent<T> {
                                     // Sorting
                                     (::div.styled(sorterStyle) {}){
                                         if (column._id == sorting.id) {
-                                            component.sortingRenderer.value.renderSortingActive(this, sorting.strategy)
+                                            component.options.sorting.renderer.value.renderSortingActive(this, sorting.strategy)
                                         } else if (column.sorting != Sorting.DISABLED) {
-                                            component.sortingRenderer.value.renderSortingLost(this)
+                                            component.options.sorting.renderer.value.renderSortingLost(this)
                                         } else {
-                                            component.sortingRenderer.value.renderSortingDisabled(this)
+                                            component.options.sorting.renderer.value.renderSortingDisabled(this)
                                         }
                                         clicks.events.map { column._id } handledBy component.stateStore.sortingChanged
                                     }
@@ -607,7 +614,7 @@ class TableComponent<T> {
                 styling()
             }) {
                 component.tableStore.data.combine(component.stateStore.data) { data, state ->
-                    component.sorter.value.sortedBy(data, state.sortingPlan(component.columns))
+                    component.options.sorting.sorter.value.sortedBy(data, state.columnSortingPlan(component.columns))
                 }.renderEach(rowIdProvider) { t ->
                     val rowStore = component.tableStore.sub(t, rowIdProvider)
                     val currentRow = rowStore.current
@@ -663,6 +670,7 @@ fun <T, I> RenderContext.dataTable(
 ) {
     val component = TableComponent<T>().apply {
         build()
+        stateStore = StateStore(options.sorting.reducer.value)
     }
 
     // TODO: Put into its own Interface; should wait until events context is finished
