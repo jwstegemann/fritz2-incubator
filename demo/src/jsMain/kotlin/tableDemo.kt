@@ -1444,7 +1444,7 @@ fun RenderContext.tableDemo() {
                             //}
                         }
 
-                        sorter { SimpleSorter() }
+                        //sorter(SimpleSorter())
                         // TODO: Make nicer API for predefined sorting renderer?
                         // like "variants" for styling?
                         //sortingRenderer { TogglingSymbolSortingRenderer() }
