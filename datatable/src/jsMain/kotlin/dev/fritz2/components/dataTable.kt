@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.*
  *  tfoot what will we do with this section of a table?
  *
  */
-class TableComponent<T> {
+class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit> {
     companion object {
         const val prefix = "table"
         val staticCss = staticStyle(
@@ -358,11 +358,12 @@ class TableComponent<T> {
         EventsContext(selectionStore).expr()
     }
 
-    var tableStore: RootStore<List<T>> = storeOf(emptyList())
-    fun tableStore(value: RootStore<List<T>>) {
-        tableStore = value
+    var dataStore: RootStore<List<T>> = storeOf(emptyList())
+    fun dataStore(value: RootStore<List<T>>) {
+        dataStore = value
     }
 
+    // TODO: Muss weg!
     var selectedRows: Flow<List<T>> = flowOf(emptyList())
     fun selectedRows(value: Flow<List<T>>) {
         selectedRows = value
@@ -414,16 +415,15 @@ class TableComponent<T> {
     }
 
 
-    var options = Options<T>()
+    private var options = Options<T>()
     fun options(value: Options<T>.() -> Unit) {
         options = Options<T>().apply { value() }
     }
 
-    // TODO: make private, if render is in Component
-    var stateStore = StateStore(options.sorting.reducer.value)
+    private var stateStore = StateStore(options.sorting.reducer.value)
 
     fun <I> renderTable(
-        styling: GridParams.() -> Unit,
+        styling: BoxParams.() -> Unit,
         baseClass: StyleClass?,
         id: String?,
         prefix: String,
@@ -491,7 +491,7 @@ class TableComponent<T> {
     }
 
     private fun <I> renderFixedHeaderTable(
-        styling: GridParams.() -> Unit,
+        styling: BoxParams.() -> Unit,
         baseClass: StyleClass?,
         id: String?,
         prefix: String,
@@ -537,7 +537,7 @@ class TableComponent<T> {
     }
 
     private fun <I> renderSimpleTable(
-        styling: GridParams.() -> Unit,
+        styling: BoxParams.() -> Unit,
         baseClass: StyleClass?,
         id: String?,
         prefix: String,
@@ -586,13 +586,16 @@ class TableComponent<T> {
                                     // Sorting
                                     (::div.styled(sorterStyle) {}){
                                         if (column._id == sorting.id) {
-                                            component.options.sorting.renderer.value.renderSortingActive(this, sorting.strategy)
+                                            component.options.sorting.renderer.value.renderSortingActive(
+                                                this,
+                                                sorting.strategy
+                                            )
                                         } else if (column.sorting != Sorting.DISABLED) {
                                             component.options.sorting.renderer.value.renderSortingLost(this)
                                         } else {
                                             component.options.sorting.renderer.value.renderSortingDisabled(this)
                                         }
-                                        clicks.events.map { column._id } handledBy component.stateStore.sortingChanged
+                                        clicks.events.map { ColumnIdSorting.of(column) } handledBy component.stateStore.sortingChanged
                                     }
                                 }
                             }
@@ -613,10 +616,10 @@ class TableComponent<T> {
                 component.defaultTBodyStyle()
                 styling()
             }) {
-                component.tableStore.data.combine(component.stateStore.data) { data, state ->
+                component.dataStore.data.combine(component.stateStore.data) { data, state ->
                     component.options.sorting.sorter.value.sortedBy(data, state.columnSortingPlan(component.columns))
                 }.renderEach(rowIdProvider) { t ->
-                    val rowStore = component.tableStore.sub(t, rowIdProvider)
+                    val rowStore = component.dataStore.sub(t, rowIdProvider)
                     val currentRow = rowStore.current
                     val selected = component.selectedRows.map { selectedRows ->
                         selectedRows.contains(currentRow)
@@ -658,150 +661,159 @@ class TableComponent<T> {
 
     }
 
+    override fun render(
+        context: RenderContext,
+        styling: BoxParams.() -> Unit,
+        baseClass: StyleClass?,
+        id: String?,
+        prefix: String
+    ) {
+
+        // TODO: Put into its own Interface; should wait until events context is finished
+        prependAdditionalColumns {
+            when (selectionMode) {
+                Companion.SelectionMode.MULTI -> {
+                    column {
+                        width {
+                            min { "60px" }
+                            max { "60px" }
+                        }
+                        header {
+                            content {
+                                checkbox({ display { inlineBlock } }, id = uniqueId()) {
+                                    checked(
+                                        selectedRows.map {
+                                            it.isNotEmpty() && it == dataStore.current
+                                        }
+                                    )
+                                    events {
+
+                                        changes.states().map { selected ->
+                                            if (selected) {
+                                                dataStore.current
+                                            } else {
+                                                emptyList()
+                                            }
+                                        } handledBy selectionStore.update
+
+                                    }
+                                }
+                            }
+                        }
+                        content { ctx, _, rowStore ->
+                            ctx.apply {
+                                checkbox(
+                                    { margin { "0" } },
+                                    id = uniqueId()
+                                ) {
+                                    if (rowStore != null) {
+                                        checked(
+                                            selectionStore.data.map { selectedRows ->
+                                                selectedRows.contains(rowStore.current)
+                                            }
+                                        )
+                                        events {
+                                            clicks.events.map {
+                                                rowStore.current
+                                            } handledBy selectionStore.selectRows
+                                        }
+                                    }
+
+                                }
+                            }
+                        }
+                        sorting { Sorting.DISABLED }
+                    }
+                }
+                Companion.SelectionMode.SINGLE_CHECKBOX -> {
+                    column {
+                        width {
+                            min { "60px" }
+                            max { "60px" }
+                        }
+                        content { ctx, _, rowStore ->
+                            ctx.apply {
+                                checkbox(
+                                    { margin { "0" } },
+                                    id = uniqueId()
+                                ) {
+                                    if (rowStore != null) {
+                                        checked(
+                                            // TODO: Remove ols events handling!
+                                            selectionStore.data.map { selectedRows ->
+                                                selectedRows.contains(rowStore.current)
+                                            }
+                                        )
+                                        events {
+
+                                            clicks.events.map {
+                                                rowStore.current
+                                            } handledBy selectionStore.selectRow
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        sorting { Sorting.DISABLED }
+                    }
+                }
+                else -> {
+                }
+            }
+        }
+
+        stateStore.update(
+            State(
+                columns.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
+                emptyList()
+            )
+        )
+
+        context.apply {
+            if (captionPlacement == Companion.CaptionPlacement.TOP) {
+                caption?.invoke(this)
+            }
+
+            (::div.styled {
+                options.width.value?.also { width { it } }
+                options.height.value?.also { height { it } }
+                options.maxHeight.value?.also { maxHeight { it } }
+                options.maxWidth.value?.also { maxWidth { it } }
+
+                if (options.height.value != null || options.width.value != null) {
+                    overflow { OverflowValues.auto }
+                }
+
+                css("overscroll-behavior: contain")
+                position { relative { } }
+            }) {
+                renderTable(styling, baseClass, id, prefix, rowIdProvider, this)
+            }
+
+            if (captionPlacement == Companion.CaptionPlacement.BOTTOM) {
+                caption?.invoke(this)
+            }
+        }
+    }
+
+    fun initWithFinalDeclarations() {
+        stateStore = StateStore(options.sorting.reducer.value)
+    }
+
 }
 
 fun <T, I> RenderContext.dataTable(
     styling: GridParams.() -> Unit = {},
+    rowIdProvider: (T) -> I,
     baseClass: StyleClass? = null,
     id: String? = null,
     prefix: String = TableComponent.prefix,
-    rowIdProvider: (T) -> I,
-    build: TableComponent<T>.() -> Unit = {}
+    build: TableComponent<T, I>.() -> Unit = {}
 ) {
-    val component = TableComponent<T>().apply {
+    TableComponent(rowIdProvider).apply {
         build()
-        stateStore = StateStore(options.sorting.reducer.value)
-    }
-
-    // TODO: Put into its own Interface; should wait until events context is finished
-    component.prependAdditionalColumns {
-        when (component.selectionMode) {
-            TableComponent.Companion.SelectionMode.MULTI -> {
-                column {
-                    width {
-                        min { "60px" }
-                        max { "60px" }
-                    }
-                    header {
-                        content {
-                            checkbox({ display { inlineBlock } }, id = uniqueId()) {
-                                checked(
-                                    component.selectedRows.map {
-                                        it.isNotEmpty() && it == component.tableStore.current
-                                    }
-                                )
-                                events {
-
-                                    changes.states().map { selected ->
-                                        if (selected) {
-                                            component.tableStore.current
-                                        } else {
-                                            emptyList()
-                                        }
-                                    } handledBy component.selectionStore.update
-
-                                }
-                            }
-                        }
-                    }
-                    content { ctx, _, rowStore ->
-                        ctx.apply {
-                            checkbox(
-                                { margin { "0" } },
-                                id = uniqueId()
-                            ) {
-                                if (rowStore != null) {
-                                    checked(
-                                        component.selectionStore.data.map { selectedRows ->
-                                            selectedRows.contains(rowStore.current)
-                                        }
-                                    )
-                                    events {
-                                        clicks.events.map {
-                                            rowStore.current
-                                        } handledBy component.selectionStore.selectRows
-                                    }
-                                }
-
-                            }
-                        }
-                    }
-                    sorting { Sorting.DISABLED }
-                }
-            }
-            TableComponent.Companion.SelectionMode.SINGLE_CHECKBOX -> {
-                column {
-                    width {
-                        min { "60px" }
-                        max { "60px" }
-                    }
-                    content { ctx, _, rowStore ->
-                        ctx.apply {
-                            checkbox(
-                                { margin { "0" } },
-                                id = uniqueId()
-                            ) {
-                                if (rowStore != null) {
-                                    checked(
-                                        // TODO: Remove ols events handling!
-                                        component.selectionStore.data.map { selectedRows ->
-                                            selectedRows.contains(rowStore.current)
-                                        }
-                                    )
-                                    events {
-
-                                        clicks.events.map {
-                                            rowStore.current
-                                        } handledBy component.selectionStore.selectRow
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    sorting { Sorting.DISABLED }
-                }
-            }
-            else -> {
-            }
-        }
-    }
-
-    component.stateStore.update(
-        State(
-            component.columns.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
-            emptyList()
-        )
-    )
-
-
-    if (component.captionPlacement == TableComponent.Companion.CaptionPlacement.TOP) {
-        component.caption?.invoke(this)
-    }
-
-    (::div.styled {
-        component.options.width.value?.also { width { it } }
-        component.options.height.value?.also { height { it } }
-        component.options.maxHeight.value?.also { maxHeight { it } }
-        component.options.maxWidth.value?.also { maxWidth { it } }
-
-        if (component.options.height.value != null || component.options.width.value != null) {
-            overflow { auto }
-        }
-
-        css("overscroll-behavior: contain")
-        position { relative { } }
-    }) {
-
-
-        component.renderTable(styling, baseClass, id, prefix, rowIdProvider, this)
-
-
-    }
-
-    if (component.captionPlacement == TableComponent.Companion.CaptionPlacement.BOTTOM) {
-        component.caption?.invoke(this)
-    }
-
+        initWithFinalDeclarations()
+    }.render(this, styling, baseClass, id, prefix)
 }
 
 

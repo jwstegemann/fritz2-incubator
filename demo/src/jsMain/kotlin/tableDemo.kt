@@ -1,7 +1,9 @@
 import dev.fritz2.binding.RootStore
 import dev.fritz2.binding.storeOf
 import dev.fritz2.components.*
+import dev.fritz2.components.datatable.SingleArrowSortingRenderer
 import dev.fritz2.components.datatable.Sorting
+import dev.fritz2.components.datatable.SortingRenderer
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.identification.uniqueId
@@ -9,7 +11,6 @@ import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.buildLens
 import dev.fritz2.lenses.format
 import dev.fritz2.styling.params.styled
-import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
@@ -1331,7 +1332,7 @@ fun RenderContext.tableDemo() {
                         caption(selectionModeStore.data.map { mode ->
                             "Table with \"${mode.name}\" Selection Mode "
                         })
-                        tableStore(TableStore)
+                        dataStore(TableStore)
                         selectedRows(selectedStore.data)
                         selectionMode(selectionMode)
 
@@ -1445,13 +1446,28 @@ fun RenderContext.tableDemo() {
                             //}
                         }
 
-                        //sorter(SimpleSorter())
-                        // TODO: Make nicer API for predefined sorting renderer?
-                        // like "variants" for styling?
-                        //sortingRenderer { TogglingSymbolSortingRenderer() }
                         options {
                             height("auto")
                             maxHeight("70vh")
+                            sorting {
+                                renderer(object: SortingRenderer {
+                                    private val delegate = SingleArrowSortingRenderer()
+                                    override fun renderSortingActive(context: Div, sorting: Sorting) {
+                                        console.log("I render it my way!")
+                                        delegate.renderSortingActive(context, sorting)
+                                    }
+
+                                    override fun renderSortingLost(context: Div) {
+                                        delegate.renderSortingLost(context)
+                                    }
+
+                                    override fun renderSortingDisabled(context: Div) {
+                                        context.apply {
+                                            icon { fromTheme { fritz2 } }
+                                        }
+                                    }
+                                })
+                            }
                         }
 
                     }

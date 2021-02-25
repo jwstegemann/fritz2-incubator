@@ -59,6 +59,8 @@ data class ColumnIdSorting(
 ) {
     companion object {
         fun noSorting() = ColumnIdSorting(null)
+
+        fun <T> of(column: Column<T>) = ColumnIdSorting(column._id, column.sorting)
     }
 }
 
@@ -71,7 +73,6 @@ Sortieren basiert auf drei unabhängigen Komponenten:
 - Rendern des Sortierbedienelements [SortingRenderer] rendert in Tabellenkopf Sorting Steuerelemente / Anzeigen.
 - Durchführung der Sortierung [Sorter<T>] arbeitet nach SortingPlan
  */
-
 
 interface RowSorter<T> {
     fun sortedBy(
@@ -194,33 +195,37 @@ data class State(
 }
 
 interface SortingPlanReducer {
-    fun reduce(sortingPlan: SortingPlan, activatedColumnId: String): SortingPlan
+    fun reduce(sortingPlan: SortingPlan, activated: ColumnIdSorting): SortingPlan
 }
 
 class TogglingSortingPlanReducer : SortingPlanReducer {
-    override fun reduce(sortingPlan: SortingPlan, activatedColumnId: String): SortingPlan =
-        listOf(
-            ColumnIdSorting(
-                activatedColumnId,
-                if (sortingPlan.isNotEmpty() && sortingPlan.first().id == activatedColumnId) {
-                    when (sortingPlan.first().strategy) {
-                        Sorting.ASC -> Sorting.DESC
-                        Sorting.DESC -> Sorting.NONE
-                        else -> Sorting.ASC
+    override fun reduce(sortingPlan: SortingPlan, activated: ColumnIdSorting): SortingPlan =
+        if (activated.strategy == Sorting.DISABLED) {
+            sortingPlan
+        } else {
+            listOf(
+                ColumnIdSorting(
+                    activated.id,
+                    if (sortingPlan.isNotEmpty() && sortingPlan.first().id == activated.id) {
+                        when (sortingPlan.first().strategy) {
+                            Sorting.ASC -> Sorting.DESC
+                            Sorting.DESC -> Sorting.NONE
+                            else -> Sorting.ASC
+                        }
+                    } else {
+                        Sorting.ASC
                     }
-                } else {
-                    Sorting.ASC
-                }
+                )
             )
-        )
+        }
 }
 
 class StateStore(private val sortingPlanReducer: SortingPlanReducer) : RootStore<State>(
     State(emptyList(), emptyList())
 ) {
 
-    val sortingChanged = handle { state, columnId: String ->
-        state.copy(sortingPlan = sortingPlanReducer.reduce(state.sortingPlan, columnId))
+    val sortingChanged = handle { state, activated: ColumnIdSorting ->
+        state.copy(sortingPlan = sortingPlanReducer.reduce(state.sortingPlan, activated))
     }
 
     // TODO: Add handler for ordering / hiding or showing columns (change ``order`` property)
