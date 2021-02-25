@@ -1,6 +1,7 @@
 import dev.fritz2.binding.RootStore
 import dev.fritz2.binding.storeOf
 import dev.fritz2.components.*
+import dev.fritz2.components.datatable.Sorting
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.identification.uniqueId
@@ -1434,7 +1435,7 @@ fun RenderContext.tableDemo() {
                             column("Phone") {
                                 lens { phoneLens }
                                 // TODO: Ugly -> Enum must be receiver; but how?
-                                sorting { TableComponent.Companion.Sorting.DISABLED }
+                                sorting { Sorting.DISABLED }
                             }
                             column("Mobile") { lens { mobileLens } }
                             column("E-Mail") {

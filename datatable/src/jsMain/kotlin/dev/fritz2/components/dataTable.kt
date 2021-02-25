@@ -1,13 +1,13 @@
 package dev.fritz2.components
 
 import dev.fritz2.binding.*
+import dev.fritz2.components.datatable.*
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.Td
 import dev.fritz2.dom.states
 import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
-import dev.fritz2.lenses.Lenses
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.name
 import dev.fritz2.styling.params.*
@@ -16,166 +16,6 @@ import dev.fritz2.styling.theme.Property
 import dev.fritz2.styling.theme.Theme
 import dev.fritz2.styling.whenever
 import kotlinx.coroutines.flow.*
-
-typealias TableSortingPlan<T> = List<Pair<TableComponent.TableColumn<T>, TableComponent.Companion.Sorting>>
-
-data class ColumnIdSorting(
-    val id: String?,
-    val strategy: TableComponent.Companion.Sorting = TableComponent.Companion.Sorting.NONE
-) {
-    companion object {
-        fun noSorting() = ColumnIdSorting(null)
-    }
-}
-
-interface TableSorter<T> {
-    fun sortedBy(
-        rows: List<T>,
-        sortingPlan: TableSortingPlan<T>
-    ): List<T>
-}
-
-class SimpleSorter<T> : TableSorter<T> {
-    override fun sortedBy(
-        rows: List<T>,
-        sortingPlan: TableSortingPlan<T>
-    ): List<T> =
-        if (sortingPlan.isNotEmpty()) {
-            val (config, sorting) = sortingPlan.first()
-            if (
-                sorting != TableComponent.Companion.Sorting.DISABLED
-                && sorting != TableComponent.Companion.Sorting.NONE
-                && (config.lens != null || config.sortBy != null)
-            ) {
-                rows.sortedWith(
-                    createComparator(config, sorting),
-                )
-            } else rows
-        } else {
-            rows
-        }
-
-    private fun createComparator(
-        column: TableComponent.TableColumn<T>,
-        sorting: TableComponent.Companion.Sorting
-    ): Comparator<T> {
-        if (column.sortBy == null) {
-            return when (sorting) {
-                TableComponent.Companion.Sorting.ASC -> {
-                    compareBy { column.lens!!.get(it) }
-                }
-                else -> {
-                    compareByDescending { column.lens!!.get(it) }
-                }
-            }
-        } else {
-            return when (sorting) {
-                TableComponent.Companion.Sorting.ASC -> {
-                    column.sortBy
-                }
-                else -> {
-                    column.sortBy.reversed()
-                }
-            }
-        }
-    }
-}
-
-interface SortingRenderer {
-    fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting)
-    fun renderSortingLost(context: Div)
-    fun renderSortingDisabled(context: Div)
-}
-
-class SingleArrowSortingRenderer() : SortingRenderer {
-    val sortDirectionSelected: Style<BasicParams> = {
-        color { base }
-    }
-
-    val sortDirectionIcon: Style<BasicParams> = {
-        width { "2rem" }
-        height { "2rem" }
-        color { lightGray }
-        css("cursor:pointer;")
-    }
-
-    override fun renderSortingActive(context: Div, sorting: TableComponent.Companion.Sorting) {
-        context.apply {
-            when (sorting) {
-                TableComponent.Companion.Sorting.NONE -> renderSortingLost((this))
-                else -> icon({
-                    sortDirectionIcon()
-                    sortDirectionSelected()
-                    size { normal }
-                }) { fromTheme { if (sorting == TableComponent.Companion.Sorting.ASC) arrowUp else arrowDown } }
-            }
-        }
-    }
-
-    override fun renderSortingLost(context: Div) {
-        context.apply {
-            icon({
-                sortDirectionIcon()
-                size { normal }
-            }) { fromTheme { sort } }
-        }
-    }
-
-    override fun renderSortingDisabled(context: Div) {
-        // just show nothing in this case
-    }
-}
-
-/*
-Sortieren basiert auf drei unabhängigen Komponenten:
-- Sortierkonfiguration + Änderung [fehlt noch!] SortingPlanReducer
-- Rendern des Sortierbedienelements [SortingRenderer]
-- Durchführung der Sortierung [TableSorter<T>]
- */
-
-class TableConfigStore : RootStore<TableComponent.TableState>(
-    TableComponent.TableState(emptyList(), emptyList())
-) {
-
-    val sortingChanged = handle { state, id: String ->
-
-        val new = if (state.sorting.isNotEmpty()) {
-            if (state.sorting.first().id == id) {
-                // TODO: Create interface to enable different behaviours (becomes important, if sorting over
-                //  multiple columns will be available!
-                when (state.sorting.first().strategy) {
-                    TableComponent.Companion.Sorting.ASC -> TableComponent.Companion.Sorting.DESC
-                    TableComponent.Companion.Sorting.DESC -> TableComponent.Companion.Sorting.NONE
-                    else -> TableComponent.Companion.Sorting.ASC
-                }
-            } else {
-                TableComponent.Companion.Sorting.ASC
-            }
-        } else {
-            TableComponent.Companion.Sorting.ASC
-        }
-
-        state.copy(sorting = listOf(ColumnIdSorting(id, new)))
-    }
-
-    // TODO: Add handler for ordering / hiding or showing columns (change ``order`` property)
-    //  Example for UI for changing: https://tailwindcomponents.com/component/table-ui-with-tailwindcss-and-alpinejs
-}
-
-
-class TableSelectionStore<T> : MultiSelectionStore<T>() {
-    val selectRows = toggle
-
-    val selectRow = handleAndEmit<T, T> { _, new ->
-        emit(new)
-        listOf(new)
-    }
-
-    val dbClickedRow = handleAndEmit<T, T> { selectedRows, new ->
-        emit(new)
-        selectedRows
-    }
-}
 
 /**
  * TODO open questions
@@ -285,13 +125,6 @@ class TableComponent<T> {
             MULTI
         }
 
-        enum class Sorting {
-            DISABLED,
-            NONE,
-            ASC,
-            DESC
-        }
-
         enum class CaptionPlacement {
             TOP,
             BOTTOM
@@ -299,40 +132,7 @@ class TableComponent<T> {
 
     }
 
-    val configIdProvider: (Pair<TableColumn<T>, ColumnIdSorting>) -> String = { it.first._id + it.second }
-
-    @Lenses
-    data class TableColumn<T>(
-        val _id: String, // must be unique!
-        val lens: Lens<T, String>? = null,
-        val headerName: String = "",
-        val minWidth: Property? = null,
-        val maxWidth: Property? = null,
-        val hidden: Boolean = false,
-        val position: Int = 0,
-        val sorting: Sorting = Sorting.NONE,
-        val sortBy: Comparator<T>? = null,
-        val styling: Style<BasicParams> = {},
-        // TODO: Remove default
-        val content: (
-            renderContext: Td,
-            cellStore: Store<String>?,
-            rowStore: SubStore<List<T>, List<T>, T>?
-        ) -> Unit = { renderContext, store, _ ->
-            renderContext.apply {
-                store?.data?.asText()
-            }
-        },
-        val stylingHead: Style<BasicParams> = {},
-        // TODO: Remove default
-        val contentHead: Div.(tableColumn: TableColumn<T>) -> Unit = { config ->
-            +config.headerName
-        }
-    ) {
-        fun applyContent(context: Div) {
-            context.contentHead(this)
-        }
-    }
+    private val columnStateIdProvider: (Pair<Column<T>, ColumnIdSorting>) -> String = { it.first._id + it.second }
 
     class TableColumnsContext<T> {
 
@@ -340,7 +140,7 @@ class TableComponent<T> {
 
             // TODO: Enhance setup by setting a default comparator lens based
             // see createInitialComparator, if block and combineWithPreviousComparator if block!
-            fun build(): TableColumn<T> = TableColumn(
+            fun build(): Column<T> = Column(
                 _id,
                 lens,
                 header.title,
@@ -401,11 +201,11 @@ class TableComponent<T> {
                     styling = value
                 }
 
-                var content: Div.(tableColumn: TableColumn<T>) -> Unit = { config ->
+                var content: Div.(column: Column<T>) -> Unit = { config ->
                     +config.headerName
                 }
 
-                fun content(expression: Div.(tableColumn: TableColumn<T>) -> Unit) {
+                fun content(expression: Div.(column: Column<T>) -> Unit) {
                     content = expression
                 }
             }
@@ -464,9 +264,9 @@ class TableComponent<T> {
 
         }
 
-        private var initialColumns: MutableMap<String, TableColumn<T>> = mutableMapOf()
+        private var initialColumns: MutableMap<String, Column<T>> = mutableMapOf()
 
-        val columns: Map<String, TableColumn<T>>
+        val columns: Map<String, Column<T>>
             get() = initialColumns
 
         fun column(expression: TableColumnContext<T>.() -> Unit) {
@@ -482,7 +282,7 @@ class TableComponent<T> {
 
     }
 
-    var columns: Map<String, TableColumn<T>> = mapOf()
+    var columns: Map<String, Column<T>> = mapOf()
 
     fun columns(expression: TableColumnsContext<T>.() -> Unit) {
         columns = TableColumnsContext<T>().apply(expression).columns
@@ -497,31 +297,10 @@ class TableComponent<T> {
                 .toMap()
     }
 
-    /**
-     * Central type for dynamic column configuration state
-     */
-    data class TableState(
-        val order: List<String>,
-        val sorting: List<ColumnIdSorting>,
-    ) {
-        fun <T> orderedColumnsWithSorting(columns: Map<String, TableColumn<T>>):
-                List<Pair<TableColumn<T>, ColumnIdSorting>> =
-            order.map { colId ->
-                val sortingIndexForCurrentColumn = sorting.indexOfFirst { (id, _) -> id == colId }
-                if (sortingIndexForCurrentColumn != -1) {
-                    columns[colId]!! to sorting[sortingIndexForCurrentColumn]
-                } else {
-                    columns[colId]!! to ColumnIdSorting.noSorting()
-                }
-            }
 
-        fun <T> sortingPlan(columns: Map<String, TableColumn<T>>): List<Pair<TableColumn<T>, Sorting>> =
-            sorting.map { (colId, sorting) -> columns[colId]!! to sorting }
-    }
+    val stateStore = StateStore()
 
-    val configStore = TableConfigStore()
-
-    val sorter = ComponentProperty<TableSorter<T>>(SimpleSorter())
+    val sorter = ComponentProperty<RowSorter<T>>(SimpleRowSorter())
 
     val sortingRenderer = ComponentProperty<SortingRenderer>(SingleArrowSortingRenderer())
 
@@ -574,16 +353,16 @@ class TableComponent<T> {
         selectionMode = value
     }
 
-    val tableSelectionStore: TableSelectionStore<T> = TableSelectionStore()
+    val selectionStore: RowSelectionStore<T> = RowSelectionStore()
 
-    class EventsContext<T>(tableSelectionStore: TableSelectionStore<T>) {
-        val selectedRows: Flow<List<T>> = tableSelectionStore.data
-        val selectedRow: Flow<T> = tableSelectionStore.selectRow
-        val dbClicks: Flow<T> = tableSelectionStore.dbClickedRow
+    class EventsContext<T>(rowSelectionStore: RowSelectionStore<T>) {
+        val selectedRows: Flow<List<T>> = rowSelectionStore.data
+        val selectedRow: Flow<T> = rowSelectionStore.selectRow
+        val dbClicks: Flow<T> = rowSelectionStore.dbClickedRow
     }
 
     fun events(expr: EventsContext<T>.() -> Unit) {
-        EventsContext(tableSelectionStore).expr()
+        EventsContext(selectionStore).expr()
     }
 
     var tableStore: RootStore<List<T>> = storeOf(emptyList())
@@ -651,7 +430,7 @@ class TableComponent<T> {
             staticCss
         }
 
-        val gridCols = component.configStore.data
+        val gridCols = component.stateStore.data
             .map { (order, _) ->
                 var minmax = ""
                 //var header = ""
@@ -783,9 +562,9 @@ class TableComponent<T> {
                 styling()
             }) {
                 tr {
-                    component.configStore.data.map { it.orderedColumnsWithSorting(component.columns) }
-                        .renderEach(component.configIdProvider) { (colConfig, sorting) ->
-                            (::th.styled(colConfig.stylingHead) {
+                    component.stateStore.data.map { it.orderedColumnsWithSorting(component.columns) }
+                        .renderEach(component.columnStateIdProvider) { (column, sorting) ->
+                            (::th.styled(column.stylingHead) {
                                 defaultTh()
                                 component.defaultThStyle()
                             })  {
@@ -795,18 +574,18 @@ class TableComponent<T> {
                                     alignItems { center }
                                 }) {
                                     // Column Header Content
-                                    colConfig.applyContent(this)
+                                    column.applyContent(this)
 
                                     // Sorting
                                     (::div.styled(sorterStyle) {}){
-                                        if (colConfig._id == sorting.id) {
+                                        if (column._id == sorting.id) {
                                             component.sortingRenderer.value.renderSortingActive(this, sorting.strategy)
-                                        } else if (colConfig.sorting != Companion.Sorting.DISABLED) {
+                                        } else if (column.sorting != Sorting.DISABLED) {
                                             component.sortingRenderer.value.renderSortingLost(this)
                                         } else {
                                             component.sortingRenderer.value.renderSortingDisabled(this)
                                         }
-                                        clicks.events.map { colConfig._id } handledBy component.configStore.sortingChanged
+                                        clicks.events.map { column._id } handledBy component.stateStore.sortingChanged
                                     }
                                 }
                             }
@@ -827,8 +606,8 @@ class TableComponent<T> {
                 component.defaultTBodyStyle()
                 styling()
             }) {
-                component.tableStore.data.combine(component.configStore.data) { tableData, config ->
-                    component.sorter.value.sortedBy(tableData, config.sortingPlan(component.columns))
+                component.tableStore.data.combine(component.stateStore.data) { data, state ->
+                    component.sorter.value.sortedBy(data, state.sortingPlan(component.columns))
                 }.renderEach(rowIdProvider) { t ->
                     val rowStore = component.tableStore.sub(t, rowIdProvider)
                     val currentRow = rowStore.current
@@ -845,22 +624,22 @@ class TableComponent<T> {
                         if (component.selectionMode == Companion.SelectionMode.SINGLE) {
                             clicks.events.map {
                                 currentRow
-                            } handledBy component.tableSelectionStore.selectRow
+                            } handledBy component.selectionStore.selectRow
                         }
 
-                        dblclicks.events.map { currentRow } handledBy component.tableSelectionStore.dbClickedRow
+                        dblclicks.events.map { currentRow } handledBy component.selectionStore.dbClickedRow
 
-                        component.configStore.data.map { it.order.mapNotNull { component.columns[it] } }
-                            .renderEach { ctx ->
-                                (::td.styled(ctx.styling) {
+                        component.stateStore.data.map { state -> state.order.mapNotNull { component.columns[it] } }
+                            .renderEach { column ->
+                                (::td.styled(column.styling) {
                                     defaultTd()
                                     component.defaultTdStyle()
                                 }) {
-                                    if (ctx.lens != null) {
-                                        val b = rowStore.sub(ctx.lens)
-                                        ctx.content(this, b, rowStore)
+                                    if (column.lens != null) {
+                                        val b = rowStore.sub(column.lens)
+                                        column.content(this, b, rowStore)
                                     } else {
-                                        ctx.content(this, null, rowStore)
+                                        column.content(this, null, rowStore)
                                     }
                                 }
                             }
@@ -911,7 +690,7 @@ fun <T, I> RenderContext.dataTable(
                                         } else {
                                             emptyList()
                                         }
-                                    } handledBy component.tableSelectionStore.update
+                                    } handledBy component.selectionStore.update
 
                                 }
                             }
@@ -925,21 +704,21 @@ fun <T, I> RenderContext.dataTable(
                             ) {
                                 if (rowStore != null) {
                                     checked(
-                                        component.tableSelectionStore.data.map { selectedRows ->
+                                        component.selectionStore.data.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
                                         }
                                     )
                                     events {
                                         clicks.events.map {
                                             rowStore.current
-                                        } handledBy component.tableSelectionStore.selectRows
+                                        } handledBy component.selectionStore.selectRows
                                     }
                                 }
 
                             }
                         }
                     }
-                    sorting { TableComponent.Companion.Sorting.DISABLED }
+                    sorting { Sorting.DISABLED }
                 }
             }
             TableComponent.Companion.SelectionMode.SINGLE_CHECKBOX -> {
@@ -957,7 +736,7 @@ fun <T, I> RenderContext.dataTable(
                                 if (rowStore != null) {
                                     checked(
                                         // TODO: Remove ols events handling!
-                                        component.tableSelectionStore.data.map { selectedRows ->
+                                        component.selectionStore.data.map { selectedRows ->
                                             selectedRows.contains(rowStore.current)
                                         }
                                     )
@@ -965,13 +744,13 @@ fun <T, I> RenderContext.dataTable(
 
                                         clicks.events.map {
                                             rowStore.current
-                                        } handledBy component.tableSelectionStore.selectRow
+                                        } handledBy component.selectionStore.selectRow
                                     }
                                 }
                             }
                         }
                     }
-                    sorting { TableComponent.Companion.Sorting.DISABLED }
+                    sorting { Sorting.DISABLED }
                 }
             }
             else -> {
@@ -979,8 +758,8 @@ fun <T, I> RenderContext.dataTable(
         }
     }
 
-    component.configStore.update(
-        TableComponent.TableState(
+    component.stateStore.update(
+        State(
             component.columns.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
             emptyList()
         )
