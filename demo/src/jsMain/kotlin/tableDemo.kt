@@ -1436,7 +1436,7 @@ fun RenderContext.tableDemo() {
                             column("Phone") {
                                 lens { phoneLens }
                                 // TODO: Ugly -> Enum must be receiver; but how?
-                                sorting { Sorting.DISABLED }
+                                sorting { Disabled }
                             }
                             column("Mobile") { lens { mobileLens } }
                             column("E-Mail") {

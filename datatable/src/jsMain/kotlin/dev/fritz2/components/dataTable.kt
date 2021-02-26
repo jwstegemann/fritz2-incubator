@@ -148,7 +148,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                 width?.max,
                 hidden,
                 position,
-                sorting,
+                sorting.value(SortingContext),
                 sortBy,
                 styling,
                 content,
@@ -226,11 +226,14 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                 position = value()
             }
 
-            private var sorting: Sorting = Sorting.NONE
-            fun sorting(value: () -> Sorting) {
-                sorting = value()
-                console.info("Setze Sorting auf:", sorting.toString())
+            object SortingContext {
+                val Disabled = Sorting.DISABLED
+                val None = Sorting.NONE
+                val Asc = Sorting.ASC
+                val Desc = Sorting.DESC
             }
+
+            val sorting = ComponentProperty<SortingContext.() -> Sorting> { None }
 
             private var sortBy: Comparator<T>? = null
             fun sortBy(value: () -> Comparator<T>) {
@@ -420,7 +423,9 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
         options = Options<T>().apply { value() }
     }
 
-    private var stateStore = StateStore(options.sorting.reducer.value)
+    private val stateStore: StateStore by lazy {
+        StateStore(options.sorting.reducer.value)
+    }
 
     fun <I> renderTable(
         styling: BoxParams.() -> Unit,
@@ -722,7 +727,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                                 }
                             }
                         }
-                        sorting { Sorting.DISABLED }
+                        sorting { Disabled }
                     }
                 }
                 Companion.SelectionMode.SINGLE_CHECKBOX -> {
@@ -795,11 +800,6 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
             }
         }
     }
-
-    fun initWithFinalDeclarations() {
-        stateStore = StateStore(options.sorting.reducer.value)
-    }
-
 }
 
 fun <T, I> RenderContext.dataTable(
@@ -810,10 +810,7 @@ fun <T, I> RenderContext.dataTable(
     prefix: String = TableComponent.prefix,
     build: TableComponent<T, I>.() -> Unit = {}
 ) {
-    TableComponent(rowIdProvider).apply {
-        build()
-        initWithFinalDeclarations()
-    }.render(this, styling, baseClass, id, prefix)
+    TableComponent(rowIdProvider).apply(build).render(this, styling, baseClass, id, prefix)
 }
 
 
