@@ -19,7 +19,6 @@ class MenuComponent {
     companion object {
         private val menuContainerCss: Style<BasicParams> = {
             position { relative { } }
-            display { inlineBlock }
         }
 
         private val menuInnerCss: Style<BasicParams> = {
@@ -40,10 +39,10 @@ class MenuComponent {
 
     fun render(renderContext: RenderContext) {
         renderContext.apply {
-            box(styling = menuContainerCss) {
+            box(styling = menuContainerCss, prefix = "menu-container") {
                 visible.value.render {
                     if (it)
-                        box(styling = menuInnerCss) {
+                        box(styling = menuInnerCss, prefix = "menu-inner") {
                             items.value?.invoke(this)
                         }
                     else
