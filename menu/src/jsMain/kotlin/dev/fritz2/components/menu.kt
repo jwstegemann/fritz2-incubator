@@ -32,17 +32,29 @@ class MenuComponent {
 
             css(" box-shadow: rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.05) 0px 4px 6px -2px;")
         }
+
+        class VisibilityStore : RootStore<Boolean>(false) {
+            val show = handle<Unit> { _, _ -> true }
+            val dismiss = handle<Unit> { _, _ -> false }
+        }
     }
 
     val items = ComponentProperty<(RenderContext.() -> Unit)?>(value = null)
-    internal val visible = ComponentProperty(value = flowOf(false))
+    val visibilityStore = VisibilityStore()
 
     fun render(renderContext: RenderContext) {
         renderContext.apply {
             box(styling = menuContainerCss, prefix = "menu-container") {
-                visible.value.render {
+                visibilityStore.data.render {
                     if (it)
                         box(styling = menuInnerCss, prefix = "menu-inner") {
+                            // TODO: Remove once the menu can be dismissed via window event
+                            clickButton {
+                                text("Dismiss (debug)")
+                                size { small }
+                                variant { outline }
+                            } handledBy visibilityStore.dismiss
+
                             items.value?.invoke(this)
                         }
                     else
@@ -57,20 +69,17 @@ fun RenderContext.menu(
     styling: BasicParams.() -> Unit = {},
     baseClass: StyleClass? = null,
     id: String? = null,
-    prefix: String = "alert",
+    prefix: String = "menu",
     build: MenuComponent.() -> Unit,
 ): SimpleHandler<Unit> {
 
-    val visibilityStore = object : RootStore<Boolean>(false) {
-        val show = handle<Unit> { _, _ -> true }
-    }
-
     // TODO: Pass down styling params
-    MenuComponent().apply(build + {
-        visible(visibilityStore.data)
-    }).render(this)
+    val component = MenuComponent().apply(build)
+    component.render(this)
 
-    return visibilityStore.show
+    // TODO: Close menu when clicking outside
+
+    return component.visibilityStore.show
 }
 
 
