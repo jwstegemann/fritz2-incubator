@@ -84,6 +84,7 @@ fun main() {
                         text("Test")
                     }
                 }
+                placement { right }
                 items {
                     menuCheckboxGroup(
                         title = "Checkboxes",

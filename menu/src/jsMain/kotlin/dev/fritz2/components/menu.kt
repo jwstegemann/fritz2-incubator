@@ -1,7 +1,6 @@
 package dev.fritz2.components
 
 import dev.fritz2.binding.RootStore
-import dev.fritz2.binding.SimpleHandler
 import dev.fritz2.binding.Store
 import dev.fritz2.dom.DomListener
 import dev.fritz2.dom.html.RenderContext
@@ -35,9 +34,54 @@ private val menuOptionStyle: Style<BasicParams> = {
 }
 
 
+// TODO: Move styles into theme
+
+interface MenuPlacements {
+    val left: MenuPlacement
+    val right: MenuPlacement
+    val bottom: MenuPlacement
+}
+
+interface MenuPlacement {
+    val containerLayout: Style<FlexParams>
+    val dropdownStyle: Style<BasicParams>
+}
+
+val menuPlacements = object : MenuPlacements {
+    override val left = object : MenuPlacement {
+        override val containerLayout: Style<FlexParams> = {
+            direction { rowReverse }
+        }
+        override val dropdownStyle: Style<BasicParams> = {
+            css("transform: translateX(-100%)")
+        }
+    }
+    override val right = object : MenuPlacement {
+        override val containerLayout: Style<FlexParams> = {
+            direction { row }
+        }
+        override val dropdownStyle: Style<BasicParams> = {
+            // No special styles needed
+        }
+    }
+    override val bottom = object : MenuPlacement {
+        override val containerLayout: Style<FlexParams> = {
+            direction { column }
+        }
+        override val dropdownStyle: Style<BasicParams> = {
+            // No special styles needed
+        }
+    }
+}
+
+
 class MenuComponent {
 
     companion object {
+        private val menuContainerCss = staticStyle("menu-container") {
+            width { minContent }
+        }
+
         private val menuDropdownContainerCss = staticStyle("menu-dropdown-container") {
             position { relative { } }
         }
@@ -70,6 +114,7 @@ class MenuComponent {
 
     val toggle = ComponentProperty<RenderContext.() -> Unit> { }
     val items = ComponentProperty<(RenderContext.() -> Unit)?>(value = null)
+    val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
     val visibilityStore = VisibilityStore()
 
     fun render(
@@ -79,10 +124,12 @@ class MenuComponent {
         prefix: String,
         renderContext: RenderContext,
     ) {
-        renderContext.apply {
-            box(prefix = "menu") {
+        val placement = placement.value.invoke(menuPlacements)
 
-                box(prefix = "menu-toggle-container") {
+        renderContext.apply {
+            flexBox(baseClass = menuContainerCss, styling = placement.containerLayout) {
+
+                box(prefix = "menu-toggle") {
                     toggle.value(this)
                     // TODO: Close menu when clicking outside
                     clicks.events.map { } handledBy visibilityStore.show
@@ -92,7 +139,7 @@ class MenuComponent {
                     visibilityStore.data.render { visible ->
                         if (visible)
                             box(
-                                styling = styling,
+                                styling = styling + placement.dropdownStyle,
                                 baseClass = baseClass?.let { it + menuDropdownCss } ?: menuDropdownCss,
                                 id = id,
                                 prefix = prefix
