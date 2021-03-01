@@ -12,16 +12,22 @@ import dev.fritz2.styling.theme.Icons
 
 
 private val menuItemCss = staticStyle("menu-item") {
-    margins {
-        bottom { normal }
+    width { "100%" }
+    paddings {
+        vertical { smaller }
     }
+    radius { "6px" }
 }
 
-private val menuOptionCss: Style<BasicParams> = {
-    margins {
-        top { smaller }
-        bottom { smaller }
-    }
+private val menuDividerCss = staticStyle("menu-divider") {
+    width { "100%" }
+    height { "1px" }
+    margins { vertical { smaller } }
+    background { color { lighterGray } }
+}
+
+private val menuOptionStyle: Style<BasicParams> = {
+    margins { vertical { smaller } }
 }
 
 
@@ -36,13 +42,15 @@ class MenuComponent {
             position { absolute { } }
             zIndex { "100" }
             radius { "6px" }
-            background { color { lightestGray } }
+            background { color { base } }
 
-            padding { small }
+            paddings {
+                horizontal { small }
+                bottom { small }
+            }
             minWidth { "20vw" }
 
-            // TODO: Use builtin box-shadow property
-            css(" box-shadow: rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.05) 0px 4px 6px -2px;")
+            boxShadow { raised }
         }
 
         class VisibilityStore : RootStore<Boolean>(false) {
@@ -107,6 +115,18 @@ fun RenderContext.menu(
 
 
 class MenuItemComponent {
+    companion object {
+        private val menuContainerStyle: Style<FlexParams> = {
+            alignItems { AlignItemsValues.center }
+            hover {
+                background {
+                    color { lightestGray }
+                }
+                css("filter: brightness(90%);")
+            }
+        }
+    }
+
     val label = ComponentProperty<String?>(value = null)
     val leftIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
     val rightIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
@@ -120,9 +140,7 @@ class MenuItemComponent {
     ) {
         renderContext.apply {
             flexBox(
-                styling = styling + {
-                    alignItems { center }
-                },
+                styling = styling + menuContainerStyle,
                 baseClass = menuItemCss + baseClass,
                 id = id,
                 prefix = prefix,
@@ -154,15 +172,6 @@ fun RenderContext.menuItem(
     .render(styling, baseClass, id, prefix, this)
 
 
-fun RenderContext.menuDivider() {
-    box(baseClass = menuItemCss, styling = {
-        width { "100%" }
-        height { "1px" }
-        background { color { lighterGray } }
-    }) { }
-}
-
-
 class MenuGroupComponent {
     val title = ComponentProperty<String?>(value = null)
     val titleStyle = ComponentProperty<Style<BasicParams>> { }
@@ -185,7 +194,9 @@ class MenuGroupComponent {
                 spacing { none }
                 items {
                     title.value?.let {
-                        (::h6.styled(styling = titleStyle.value, baseClass = menuItemCss)) { +it }
+                        (::h6.styled(styling = titleStyle.value + {
+                            margins { bottom { smaller } }
+                        })) { +it }
                     }
                     this@MenuGroupComponent.items.value?.invoke(this)
                 }
@@ -218,7 +229,7 @@ fun RenderContext.menuCheckboxGroup(
         titleStyle { margins { bottom { smaller } } }
         items {
             checkboxGroup(items = options, store = store) {
-                itemStyle(menuOptionCss)
+                itemStyle(menuOptionStyle)
             }
         }
     }
@@ -238,8 +249,11 @@ fun RenderContext.menuRadioGroup(
         titleStyle { margins { bottom { smaller } } }
         items {
             radioGroup(items = options, store = store) {
-                itemStyle(menuOptionCss)
+                itemStyle(menuOptionStyle)
             }
         }
     }
 }
+
+
+fun RenderContext.menuDivider() = box(baseClass = menuDividerCss) { }
