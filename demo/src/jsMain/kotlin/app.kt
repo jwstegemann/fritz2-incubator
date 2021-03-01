@@ -1,7 +1,10 @@
+import dev.fritz2.binding.RootStore
+import dev.fritz2.components.*
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.P
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.render
+import dev.fritz2.styling.params.plus
 import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.theme.Theme
 
@@ -71,6 +74,54 @@ fun main() {
     render("#target") {
         h1 { +"fritz incubator - Demo" }
         div {
+            val menuClickStore = object : RootStore<Unit>(Unit) {
+                val log = handle<Unit> { _, _ -> console.log("Menu item clicked!") }
+            }
+
+            flexBox({
+                width { "100%" }
+                direction { row }
+            }) {
+                clickButton {
+                    text("Test")
+                } handledBy menu {
+                    items {
+                        menuCheckboxGroup(
+                            title = "Checkboxes",
+                            options = listOf("Option 1", "Option 2", "Option 3")
+                        )
+
+                        menuDivider()
+
+                        menuRadioGroup(
+                            title = "Radios",
+                            options = listOf("Option 1", "Option 2", "Option 3")
+                        )
+
+                        menuDivider()
+
+                        menuItem {
+                            leftIcon { ban }
+                            label("This is a simple menu-item.")
+                        } handledBy menuClickStore.log
+
+                        menuGroup {
+                            title("Menu-Group")
+                            items {
+                                menuItem {
+                                    leftIcon { link }
+                                    label("Menu-item in a group.")
+                                }
+                                menuItem {
+                                    leftIcon { camera }
+                                    label("Menu-item in a group 2.")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             tableDemo()
         }
     }
