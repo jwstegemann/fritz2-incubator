@@ -3,15 +3,18 @@ package dev.fritz2.components
 import dev.fritz2.binding.RootStore
 import dev.fritz2.binding.SimpleHandler
 import dev.fritz2.binding.Store
+import dev.fritz2.dom.DomListener
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
+import org.w3c.dom.HTMLDivElement
+import org.w3c.dom.events.MouseEvent
 
 
-private val menuItemCss = staticStyle("menu-item") {
+private val menuEntryCss = staticStyle("menu-item") {
     width { "100%" }
     paddings {
         vertical { smaller }
@@ -34,11 +37,11 @@ private val menuOptionStyle: Style<BasicParams> = {
 class MenuComponent {
 
     companion object {
-        private val menuContainerStyle: Style<BasicParams> = {
+        private val menuContainerCss = staticStyle("menu-container") {
             position { relative { } }
         }
 
-        private val menuInnerStyle: Style<BasicParams> = {
+        private val menuCss = staticStyle("menu") {
             position { absolute { } }
             zIndex { "100" }
             radius { "6px" }
@@ -51,6 +54,11 @@ class MenuComponent {
             minWidth { "20vw" }
 
             boxShadow { raised }
+
+            // FIXME: Animation not working
+            // fade-in-animation
+            //opacity { "1" }
+            //css("transition: opacity 1s ease-in-out;")
         }
 
         class VisibilityStore : RootStore<Boolean>(false) {
@@ -70,13 +78,12 @@ class MenuComponent {
         renderContext: RenderContext,
     ) {
         renderContext.apply {
-            box(styling = menuContainerStyle, prefix = "menu-container") {
-                visibilityStore.data.render {
-                    if (it)
-                        // TODO: Use base class
+            box(baseClass = menuContainerCss) {
+                visibilityStore.data.render { visible ->
+                    if (visible)
                         box(
-                            styling = menuInnerStyle + styling,
-                            baseClass = baseClass,
+                            styling = styling,
+                            baseClass = baseClass?.let { it + menuCss } ?: menuCss,
                             id = id,
                             prefix = prefix
                         ) {
@@ -90,7 +97,7 @@ class MenuComponent {
                             } handledBy visibilityStore.dismiss
                         }
                     else
-                        box { }
+                        box { /* just an empty placeholder */ }
                 }
             }
         }
@@ -114,9 +121,10 @@ fun RenderContext.menu(
 }
 
 
-class MenuItemComponent {
+class MenuItemComponent : EventProperties<HTMLDivElement> by EventMixin() {
+
     companion object {
-        private val menuContainerStyle: Style<FlexParams> = {
+        private val menuItemStyle: Style<FlexParams> = {
             alignItems { AlignItemsValues.center }
             hover {
                 background {
@@ -140,8 +148,8 @@ class MenuItemComponent {
     ) {
         renderContext.apply {
             flexBox(
-                styling = styling + menuContainerStyle,
-                baseClass = menuItemCss + baseClass,
+                styling = styling + menuItemStyle,
+                baseClass = baseClass?.let { it + menuEntryCss } ?: menuEntryCss,
                 id = id,
                 prefix = prefix,
             ) {
@@ -150,12 +158,13 @@ class MenuItemComponent {
                 }
                 label.value?.let {
                     (::label.styled {
-                        margins { left { small } }
+                        margins { left { tiny } }
                     }) { +it }
                 }
                 rightIcon.value?.let {
                     icon { fromTheme(it) }
                 }
+                events.value.invoke(this)
             }
         }
     }
@@ -167,9 +176,20 @@ fun RenderContext.menuItem(
     id: String? = null,
     prefix: String = "menu-item",
     build: MenuItemComponent.() -> Unit,
-) = MenuItemComponent()
-    .apply(build)
-    .render(styling, baseClass, id, prefix, this)
+): DomListener<MouseEvent, HTMLDivElement> {
+
+    var clickListener: DomListener<MouseEvent, HTMLDivElement>? = null
+    val component = MenuItemComponent()
+        .apply(build)
+        .apply {
+            events {
+                clickListener = clicks
+            }
+        }
+
+    component.render(styling, baseClass, id, prefix, this)
+    return clickListener!!
+}
 
 
 class MenuGroupComponent {
@@ -187,14 +207,14 @@ class MenuGroupComponent {
         renderContext.apply {
             stackUp(
                 styling = styling,
-                baseClass = menuItemCss + baseClass,
+                baseClass = baseClass?.let { it + menuEntryCss } ?: menuEntryCss,
                 id = id,
                 prefix = prefix
             ) {
                 spacing { none }
                 items {
                     title.value?.let {
-                        (::h6.styled(styling = titleStyle.value + {
+                        (::h5.styled(styling = titleStyle.value + {
                             margins { bottom { smaller } }
                         })) { +it }
                     }
