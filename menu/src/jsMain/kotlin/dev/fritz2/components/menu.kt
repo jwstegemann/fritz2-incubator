@@ -10,6 +10,7 @@ import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
+import kotlinx.coroutines.flow.map
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.events.MouseEvent
 
@@ -37,11 +38,11 @@ private val menuOptionStyle: Style<BasicParams> = {
 class MenuComponent {
 
     companion object {
-        private val menuContainerCss = staticStyle("menu-container") {
+        private val menuDropdownContainerCss = staticStyle("menu-dropdown-container") {
             position { relative { } }
         }
 
-        private val menuCss = staticStyle("menu") {
+        private val menuDropdownCss = staticStyle("menu-dropdown") {
             position { absolute { } }
             zIndex { "100" }
             radius { "6px" }
@@ -67,6 +68,7 @@ class MenuComponent {
         }
     }
 
+    val toggle = ComponentProperty<RenderContext.() -> Unit> { }
     val items = ComponentProperty<(RenderContext.() -> Unit)?>(value = null)
     val visibilityStore = VisibilityStore()
 
@@ -78,26 +80,35 @@ class MenuComponent {
         renderContext: RenderContext,
     ) {
         renderContext.apply {
-            box(baseClass = menuContainerCss) {
-                visibilityStore.data.render { visible ->
-                    if (visible)
-                        box(
-                            styling = styling,
-                            baseClass = baseClass?.let { it + menuCss } ?: menuCss,
-                            id = id,
-                            prefix = prefix
-                        ) {
-                            items.value?.invoke(this)
+            box(prefix = "menu") {
 
-                            // TODO: Remove once the menu can be dismissed via window event
-                            clickButton {
-                                text("Dismiss (debug)")
-                                size { small }
-                                variant { outline }
-                            } handledBy visibilityStore.dismiss
-                        }
-                    else
-                        box { /* just an empty placeholder */ }
+                box(prefix = "menu-toggle-container") {
+                    toggle.value(this)
+                    // TODO: Close menu when clicking outside
+                    clicks.events.map { } handledBy visibilityStore.show
+                }
+
+                box(baseClass = menuDropdownContainerCss) {
+                    visibilityStore.data.render { visible ->
+                        if (visible)
+                            box(
+                                styling = styling,
+                                baseClass = baseClass?.let { it + menuDropdownCss } ?: menuDropdownCss,
+                                id = id,
+                                prefix = prefix
+                            ) {
+                                items.value?.invoke(this)
+
+                                // TODO: Remove once the menu can be dismissed via window event
+                                clickButton {
+                                    text("Dismiss (debug)")
+                                    size { small }
+                                    variant { outline }
+                                } handledBy visibilityStore.dismiss
+                            }
+                        else
+                            box { /* just an empty placeholder */ }
+                    }
                 }
             }
         }
@@ -110,15 +121,9 @@ fun RenderContext.menu(
     id: String? = null,
     prefix: String = "menu",
     build: MenuComponent.() -> Unit,
-): SimpleHandler<Unit> {
-
-    val component = MenuComponent().apply(build)
-    component.render(styling, baseClass, id, prefix, this)
-
-    // TODO: Close menu when clicking outside
-
-    return component.visibilityStore.show
-}
+) = MenuComponent()
+    .apply(build)
+    .render(styling, baseClass, id, prefix, this)
 
 
 class MenuItemComponent : EventProperties<HTMLDivElement> by EventMixin() {

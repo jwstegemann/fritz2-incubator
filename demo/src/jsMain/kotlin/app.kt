@@ -78,52 +78,49 @@ fun main() {
                 val log = handle<Unit> { _, _ -> console.log("Menu item clicked!") }
             }
 
-            flexBox({
-                width { "100%" }
-                direction { row }
-            }) {
-                clickButton {
-                    text("Test")
-                } handledBy menu {
-                    items {
-                        menuCheckboxGroup(
-                            title = "Checkboxes",
-                            options = listOf("Option 1", "Option 2", "Option 3")
-                        )
+            menu {
+                toggle {
+                    pushButton {
+                        text("Test")
+                    }
+                }
+                items {
+                    menuCheckboxGroup(
+                        title = "Checkboxes",
+                        options = listOf("Option 1", "Option 2", "Option 3")
+                    )
 
-                        menuDivider()
+                    menuDivider()
 
-                        menuRadioGroup(
-                            title = "Radios",
-                            options = listOf("Option 1", "Option 2", "Option 3")
-                        )
+                    menuRadioGroup(
+                        title = "Radios",
+                        options = listOf("Option 1", "Option 2", "Option 3")
+                    )
 
-                        menuDivider()
+                    menuDivider()
 
-                        menuItem {
-                            leftIcon { ban }
-                            label("This is a simple menu-item.")
-                        } handledBy menuClickStore.log
+                    menuItem {
+                        leftIcon { ban }
+                        label("This is a simple menu-item.")
+                    } handledBy menuClickStore.log
 
-                        menuGroup {
-                            title("Menu-Group")
-                            items {
-                                menuItem {
-                                    leftIcon { link }
-                                    label("Menu-item in a group.")
-                                }
-                                menuItem {
-                                    leftIcon { camera }
-                                    label("Menu-item in a group 2.")
-                                }
+                    menuGroup {
+                        title("Menu-Group")
+                        items {
+                            menuItem {
+                                leftIcon { link }
+                                label("Menu-item in a group.")
+                            }
+                            menuItem {
+                                leftIcon { camera }
+                                label("Menu-item in a group 2.")
                             }
                         }
                     }
                 }
             }
-
-            tableDemo()
         }
-    }
 
+        tableDemo()
+    }
 }
