@@ -100,7 +100,7 @@ class MenuComponent {
                 horizontal { small }
                 bottom { small }
             }
-            minWidth { "20vw" }
+            minWidth { minContent }
 
             boxShadow { raised }
 
@@ -227,6 +227,7 @@ class MenuItemComponent : EventProperties<HTMLDivElement> by EventMixin() {
                 label.value?.let {
                     (::label.styled {
                         margins { left { tiny } }
+                        css("white-space: nowrap")
                     }) { +it }
                 }
                 rightIcon.value?.let {
