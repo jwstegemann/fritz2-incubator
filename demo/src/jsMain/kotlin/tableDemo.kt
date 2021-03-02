@@ -1148,11 +1148,11 @@ Erika Bolnbach-Bolnbach;2017-08-06;atzleriwona@web.de;0807034829;(07241) 001911;
 Yvette Gröttner B.Sc.;1976-02-08;amies@stiebitz.de;+49(0)5060 233940;+49(0)2684182702;Krokergasse;701;05497;Hainichen
 """.trimIndent()
 
-fun parseCsvPersons(fakeData: String ) = fakeData.split('\n').withIndex().map { (index, data) ->
+fun parseCsvPersons(fakeData: String, offset: Int = 0) = fakeData.split('\n').withIndex().map { (index, data) ->
     val fields = data.split(';')
     Person(
         uniqueId(),
-        index,
+        index + offset,
         fields[0],
         LocalDate.parse(fields[1]),
         fields[2],
@@ -1187,7 +1187,7 @@ val jobSet = listOf(
 
 val fakeData = mapOf(
     false to parseCsvPersons(veryLargeFakePersonSet).take(40),
-    true to parseCsvPersons(extremlyLargeFakePersonSet).take(250)
+    true to parseCsvPersons(extremlyLargeFakePersonSet, 41).take(250)
 )
 
 
@@ -1238,241 +1238,266 @@ fun RenderContext.tableDemo() {
     toggle.data.map { fakeData[it]!! } handledBy TableStore.update
 
 
+    val selectedStore = object : RootStore<List<Person>>(emptyList()) {
 
-        val selectedStore = object : RootStore<List<Person>>(emptyList()) {
-
-            val add = handle<Person> { list, selected ->
-                if (!list.contains(selected)) {
-                    list + selected
-                } else {
-                    list
-                }
+        val add = handle<Person> { list, selected ->
+            if (!list.contains(selected)) {
+                list + selected
+            } else {
+                list
             }
+        }
 
-            val toggle = handle<Person> { list, item ->
-                console.info(item)
-                if (!list.contains(item)) {
-                    list + item
-                } else {
-                    list.filter { it != item }
-                }
+        val toggle = handle<Person> { list, item ->
+            console.info(item)
+            if (!list.contains(item)) {
+                list + item
+            } else {
+                list.filter { it != item }
             }
+        }
 
-            val clearList = handle {
-                emptyList()
-            }
+        val clearList = handle {
+            emptyList()
+        }
+
+    }
+
+    val doubleClickStore = object : RootStore<Person>(Person()) {
+
+    }
+
+    val selectionModeStore = storeOf(TableComponent.Companion.SelectionMode.NONE)
+    val newSelectedStore = storeOf(Person())
+    val multipleSelectedStore = storeOf(emptyList<Person>())
+
+
+
+    appFrame {
+        brand {
+            icon({
+                color { lighterGray }
+                size { "2rem" }
+                margins { right { normal } }
+            }) { fromTheme { fritz2 } }
+            (::span.styled {
+                fontWeight { semiBold }
+                fontSize { large }
+            }) { +"Table Demo" }
+        }
+
+        header {
+            (::span.styled {
+                fontWeight { semiBold }
+                fontSize { large }
+            }) { +"DataTables are important" }
+        }
+
+        actions {
 
         }
 
-        val doubleClickStore = object : RootStore<Person>(Person()) {
-
+        nav {
+            navLink { text("toggle data") }.map { !toggle.current } handledBy toggle.update
+            TableComponent.Companion.SelectionMode.values().map { mode ->
+                navLink { text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
+            }
         }
-
-        val selectionModeStore = storeOf(TableComponent.Companion.SelectionMode.NONE)
-        val newSelectedStore = storeOf(Person())
-        val multipleSelectedStore = storeOf(emptyList<Person>())
-
-
-
-        appFrame {
-            brand {
-                icon({
-                    color { lighterGray }
-                    size { "2rem" }
-                    margins { right { normal } }
-                }) { fromTheme { fritz2 } }
-                (::span.styled{
-                    fontWeight { semiBold }
-                    fontSize { large }
-                }) { +"Table Demo" }
+        main {
+            selectedStore.data.render { list ->
+                paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
             }
 
-            header {
-                (::span.styled {
-                    fontWeight { semiBold }
-                    fontSize { large }
-                }) { +"DataTables are important"}
-            }
-
-            actions {
-
-            }
-
-            nav {
-                navLink { text("toggle data") }.map { !toggle.current } handledBy toggle.update
-                TableComponent.Companion.SelectionMode.values().map { mode ->
-                    navLink { text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
+            ul {
+                selectedStore.data.renderEach {
+                    li { +it.toString() }
                 }
             }
-            main {
-                selectedStore.data.render { list ->
-                    paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
-                }
 
-                doubleClickStore.data.render { p ->
-                    if( p.fullName.isNotEmpty() ) {
-                        paragraph { +"DoubleClick Person ${p.id} - ${p.fullName}" }
-                    } else {
-                        paragraph { +"Use dbClick to get the Row" }
-                    }
+            doubleClickStore.data.render { p ->
+                if (p.fullName.isNotEmpty()) {
+                    paragraph { +"DoubleClick Person ${p.id} - ${p.fullName}" }
+                } else {
+                    paragraph { +"Use dbClick to get the Row" }
                 }
-                ul {
-                    newSelectedStore.data.render { item ->
-                        li { +item.fullName }
-                    }
+            }
+            ul {
+                newSelectedStore.data.render { item ->
+                    li { +item.fullName }
                 }
-                ul {
-                    multipleSelectedStore.data.renderEach { item ->
-                        li { +item.fullName }
-                    }
+            }
+            ul {
+                multipleSelectedStore.data.renderEach { item ->
+                    li { +item.fullName }
                 }
+            }
 
-                selectionModeStore.data.render { selectionMode ->
-                    dataTable(rowIdProvider = Person::id) {
-                        caption(selectionModeStore.data.map { mode ->
-                            "Table with \"${mode.name}\" Selection Mode "
-                        })
-                        dataStore(TableStore)
-                        selectedRows(selectedStore.data)
-                        selectionMode(selectionMode)
+            selectionModeStore.data.render { selectionMode ->
+                dataTable(rowIdProvider = Person::id) {
+                    caption(selectionModeStore.data.map { mode ->
+                        "Table with \"${mode.name}\" Selection Mode "
+                    })
+                    dataStore(TableStore)
+                    selectedRows(selectedStore.data)
+                    selectionMode(selectionMode)
 
-                        events {
-                            selectedRows handledBy selectedStore.update
-                            selectedRow handledBy selectedStore.toggle
-                            dbClicks handledBy doubleClickStore.update
+                    /*
+                    // Idee, wie man Modus von Darstellung/Mechanismus trennen kann
+                    // mode bestimmt strategy im default hierarchisch:
+                    // mode: default: single -> strategy: click
+                    // mode: none -> strategy: none
+                    // -> Damit muss man kaum etwas spezifizieren!
+                    options {
+                        selection {
+                            mode { single } // none, multi
+                            strategy { checkbox } // click
+                            customStrategy(SomeImplementation) // pass some custom strategy
                         }
+                    }
+                     */
 
-                        selectedRowStyle {
-                            children("td") {
-                                background {
-                                    color {
-                                        info.important
-                                    }
+                    events {
+                        selectedRows handledBy selectedStore.update
+                        selectedRow handledBy selectedStore.toggle
+                        dbClicks handledBy doubleClickStore.update
+                    }
+
+                    selectedRowStyle {
+                        children("td") {
+                            background {
+                                color {
+                                    info.important
                                 }
                             }
                         }
+                    }
 
 
-                        columns {
-                            column("ID") {
-                                lens { personIdLens + Formats.intFormat }
-                                width { minmax { "80px" } }
+                    columns {
+                        column("ID") {
+                            lens { personIdLens + Formats.intFormat }
+                            width { minmax { "80px" } }
+
+                        }
+                        column("Name") {
+                            lens { fullNameLens }
+                            content{ context, _, rowStore ->
+                                context.apply {
+                                    inputField(store = rowStore!!.sub(fullNameLens)) {  }
+                                }
 
                             }
-                            column("Name") {
-                                lens { fullNameLens }
-                                width { minmax { "2fr" } }
-                            }
-                            column("Job") {
-                                content { renderContext, _, _ ->
-                                    renderContext.apply {
-                                        select {
-                                            jobs.data.renderEach {
-                                                option {
-                                                    value(it)
-                                                    +it
-                                                }
+                            width { minmax { "2fr" } }
+                        }
+                        column("Job") {
+                            content { renderContext, _, _ ->
+                                renderContext.apply {
+                                    select {
+                                        jobs.data.renderEach {
+                                            option {
+                                                value(it)
+                                                +it
                                             }
                                         }
                                     }
                                 }
                             }
-                            column("Birthday") {
-                                lens { birthdayLens + Formats.dateFormat }
-                                width { minmax { "120px" } }
-                                styling {
-                                    color { danger }
+                        }
+                        column("Birthday") {
+                            lens { birthdayLens + Formats.dateFormat }
+                            width { minmax { "120px" } }
+                            styling {
+                                color { danger }
+                            }
+                            sortBy {
+                                compareBy { person ->
+                                    person.birthday
                                 }
-                                sortBy {
-                                    compareBy { person ->
-                                        person.birthday
+                            }
+                        }
+                        column {
+                            // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
+                            // the data from the table itself!
+                            // ``header`` oder ``head``?
+                            header {
+                                title { "Address" }
+                                styling {
+                                    background { color { "purple" } }
+                                    fontWeight { bold }
+                                }
+                                content { config ->
+                                    +config.headerName
+                                    icon { fromTheme { fritz2 } }
+                                }
+                            }
+                            width { max { "2fr" } }
+                            content { ctx, _, rowStore ->
+                                rowStore?.let { person ->
+                                    val street = person.sub(personAddressLens + streetLens)
+                                    val houseNumber = person.sub(personAddressLens + houseNumberLens)
+                                    val postalCode = person.sub(personAddressLens + postalCodeLens)
+                                    val city = person.sub(personAddressLens + cityLens)
+                                    ctx.apply {
+                                        street.data.combine(houseNumber.data) { s, h ->
+                                            "$s $h"
+                                        }.combine(postalCode.data) { a, p ->
+                                            "$a ,$p"
+                                        }.combine(city.data) { a, c ->
+                                            "$a $c"
+                                        }.asText()
                                     }
                                 }
                             }
-                            column {
-                                // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
-                                // the data from the table itself!
-                                // ``header`` oder ``head``?
-                                header {
-                                    title { "Address" }
-                                    styling {
-                                        background { color { "purple" } }
-                                        fontWeight { bold }
-                                    }
-                                    content { config ->
-                                        +config.headerName
+                            sortBy {
+                                compareBy<Person> { person ->
+                                    person.address.city
+                                }.thenBy { person ->
+                                    person.address.street
+                                }
+                            }
+                        }
+                        // IDEA: Grouping of columns for saving column space
+                        // No semantic meaning, but visibility improvements
+                        //group("Contact") {
+                        column("Phone") {
+                            lens { phoneLens }
+                            sorting { disabled }
+                        }
+                        column("Mobile") { lens { mobileLens } }
+                        column("E-Mail") {
+                            lens { emailLens }
+                            width { minmax { "2fr" } }
+                        }
+                        //}
+                    }
+
+                    options {
+                        height("auto")
+                        maxHeight("70vh")
+                        sorting {
+                            renderer(object : SortingRenderer {
+                                private val delegate = SingleArrowSortingRenderer()
+                                override fun renderSortingActive(context: Div, sorting: Sorting) {
+                                    console.log("I render it my way!")
+                                    delegate.renderSortingActive(context, sorting)
+                                }
+
+                                override fun renderSortingLost(context: Div) {
+                                    delegate.renderSortingLost(context)
+                                }
+
+                                override fun renderSortingDisabled(context: Div) {
+                                    context.apply {
                                         icon { fromTheme { fritz2 } }
                                     }
                                 }
-                                width { max { "2fr" } }
-                                content { ctx, _, rowStore ->
-                                    rowStore?.let { person ->
-                                        val street = person.sub(personAddressLens + streetLens)
-                                        val houseNumber = person.sub(personAddressLens + houseNumberLens)
-                                        val postalCode = person.sub(personAddressLens + postalCodeLens)
-                                        val city = person.sub(personAddressLens + cityLens)
-                                        ctx.apply {
-                                            street.data.combine(houseNumber.data) { s, h ->
-                                                "$s $h"
-                                            }.combine(postalCode.data) { a, p ->
-                                                "$a ,$p"
-                                            }.combine(city.data) { a, c ->
-                                                "$a $c"
-                                            }.asText()
-                                        }
-                                    }
-                                }
-                                sortBy {
-                                    compareBy<Person> { person ->
-                                        person.address.city
-                                    }.thenBy { person ->
-                                        person.address.street
-                                    }
-                                }
-                            }
-                            // IDEA: Grouping of columns for saving column space
-                            // No semantic meaning, but visibility improvements
-                            //group("Contact") {
-                            column("Phone") {
-                                lens { phoneLens }
-                                // TODO: Ugly -> Enum must be receiver; but how?
-                                sorting { Disabled }
-                            }
-                            column("Mobile") { lens { mobileLens } }
-                            column("E-Mail") {
-                                lens { emailLens }
-                                width { minmax { "2fr" } }
-                            }
-                            //}
+                            })
                         }
-
-                        options {
-                            height("auto")
-                            maxHeight("70vh")
-                            sorting {
-                                renderer(object: SortingRenderer {
-                                    private val delegate = SingleArrowSortingRenderer()
-                                    override fun renderSortingActive(context: Div, sorting: Sorting) {
-                                        console.log("I render it my way!")
-                                        delegate.renderSortingActive(context, sorting)
-                                    }
-
-                                    override fun renderSortingLost(context: Div) {
-                                        delegate.renderSortingLost(context)
-                                    }
-
-                                    override fun renderSortingDisabled(context: Div) {
-                                        context.apply {
-                                            icon { fromTheme { fritz2 } }
-                                        }
-                                    }
-                                })
-                            }
-                        }
-
                     }
+
                 }
             }
         }
+    }
 
 }

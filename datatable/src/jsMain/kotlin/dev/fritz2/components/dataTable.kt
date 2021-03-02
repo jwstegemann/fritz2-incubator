@@ -227,13 +227,13 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
             }
 
             object SortingContext {
-                val Disabled = Sorting.DISABLED
-                val None = Sorting.NONE
-                val Asc = Sorting.ASC
-                val Desc = Sorting.DESC
+                val disabled = Sorting.DISABLED
+                val none = Sorting.NONE
+                val asc = Sorting.ASC
+                val desc = Sorting.DESC
             }
 
-            val sorting = ComponentProperty<SortingContext.() -> Sorting> { None }
+            val sorting = ComponentProperty<SortingContext.() -> Sorting> { none }
 
             private var sortBy: Comparator<T>? = null
             fun sortBy(value: () -> Comparator<T>) {
@@ -625,9 +625,8 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                     component.options.sorting.sorter.value.sortedBy(data, state.columnSortingPlan(component.columns))
                 }.renderEach(rowIdProvider) { t ->
                     val rowStore = component.dataStore.sub(t, rowIdProvider)
-                    val currentRow = rowStore.current
                     val selected = component.selectedRows.map { selectedRows ->
-                        selectedRows.contains(currentRow)
+                        selectedRows.contains(rowStore.current)
                     }
 
                     (::tr.styled {
@@ -638,11 +637,11 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
 
                         if (component.selectionMode == Companion.SelectionMode.SINGLE) {
                             clicks.events.map {
-                                currentRow
+                                rowStore.current
                             } handledBy component.selectionStore.selectRow
                         }
 
-                        dblclicks.events.map { currentRow } handledBy component.selectionStore.dbClickedRow
+                        dblclicks.events.map { rowStore.current } handledBy component.selectionStore.dbClickedRow
 
                         component.stateStore.data.map { state -> state.order.mapNotNull { component.columns[it] } }
                             .renderEach { column ->
@@ -727,7 +726,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                                 }
                             }
                         }
-                        sorting { Disabled }
+                        sorting { disabled }
                     }
                 }
                 Companion.SelectionMode.SINGLE_CHECKBOX -> {
