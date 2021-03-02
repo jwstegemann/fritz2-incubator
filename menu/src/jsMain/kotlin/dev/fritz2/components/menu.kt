@@ -3,12 +3,16 @@ package dev.fritz2.components
 import dev.fritz2.binding.RootStore
 import dev.fritz2.binding.Store
 import dev.fritz2.dom.DomListener
+import dev.fritz2.dom.Window
 import dev.fritz2.dom.html.RenderContext
+import dev.fritz2.identification.uniqueId
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
+import kotlinx.browser.document
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.events.MouseEvent
@@ -105,22 +109,21 @@ class MenuComponent {
             //opacity { "1" }
             //css("transition: opacity 1s ease-in-out;")
         }
+    }
 
-        class VisibilityStore : RootStore<Boolean>(false) {
-            val show = handle<Unit> { _, _ -> true }
-            val dismiss = handle<Unit> { _, _ -> false }
-        }
+    private val visibilityStore = object : RootStore<Boolean>(false) {
+        val show = handle<Unit> { _, _ -> true }
+        val dismiss = handle<Unit> { _, _ -> false }
     }
 
     val toggle = ComponentProperty<RenderContext.() -> Unit> { }
     val items = ComponentProperty<(RenderContext.() -> Unit)?>(value = null)
     val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
-    val visibilityStore = VisibilityStore()
 
     fun render(
         styling: BasicParams.() -> Unit,
         baseClass: StyleClass?,
-        id: String?,
+        id: String,
         prefix: String,
         renderContext: RenderContext,
     ) {
@@ -137,7 +140,7 @@ class MenuComponent {
 
                 box(baseClass = menuDropdownContainerCss) {
                     visibilityStore.data.render { visible ->
-                        if (visible)
+                        if (visible) {
                             box(
                                 styling = styling + placement.dropdownStyle,
                                 baseClass = baseClass?.let { it + menuDropdownCss } ?: menuDropdownCss,
@@ -145,27 +148,40 @@ class MenuComponent {
                                 prefix = prefix
                             ) {
                                 items.value?.invoke(this)
-
-                                // TODO: Remove once the menu can be dismissed via window event
-                                clickButton {
-                                    text("Dismiss (debug)")
-                                    size { small }
-                                    variant { outline }
-                                } handledBy visibilityStore.dismiss
                             }
-                        else
+                            handleOutsideClicks(id)
+                        } else {
                             box { /* just an empty placeholder */ }
+                        }
                     }
                 }
             }
         }
+    }
+
+    // TODO: Improve the way outside clicks are detected
+    private fun RenderContext.handleOutsideClicks(menuDropdownId: String) {
+        Window.clicks.events
+            .filter { event ->
+                val dropdownElement = document.getElementById(menuDropdownId)
+                dropdownElement?.let {
+                    val bounds = it.getBoundingClientRect()
+                    // Only handle clicks outside of the menu dropdown
+                    return@filter !(event.x >= bounds.left
+                            && event.x <= bounds.right
+                            && event.y >= bounds.top
+                            && event.y <= bounds.bottom)
+                }
+                false
+            }
+            .map {  } handledBy visibilityStore.dismiss
     }
 }
 
 fun RenderContext.menu(
     styling: BasicParams.() -> Unit = {},
     baseClass: StyleClass? = null,
-    id: String? = null,
+    id: String = "menu-dropdown-${uniqueId()}",
     prefix: String = "menu",
     build: MenuComponent.() -> Unit,
 ) = MenuComponent()
