@@ -10,17 +10,8 @@ repositories {
 
 kotlin {
     jvm()
-    js(BOTH).browser {
-        testTask {
-            useKarma {
-//                useSafari()
-//                useFirefox()
-//                useChrome()
-                useChromeHeadless()
-//                usePhantomJS()
-            }
-        }
-    }
+    js(BOTH).browser()
+
     sourceSets {
         all {
             languageSettings.apply {
