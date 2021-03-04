@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.dokka") version "1.4.10.2"
 }
 
-ext["fritz2Version"] = "0.9-SNAPSHOT"
+ext["fritz2Version"] = "0.10-SNAPSHOT"
 
 allprojects {
     //manage common setting and dependencies
@@ -20,7 +20,7 @@ allprojects {
 
 subprojects {
     group = "dev.fritz2"
-    version = "0.9-SNAPSHOT"
+    version = "0.10-SNAPSHOT"
 }
 
 tasks.dokkaHtmlMultiModule.configure {
