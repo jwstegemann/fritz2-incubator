@@ -7,6 +7,7 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.buildLens
 import dev.fritz2.lenses.format
+import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1145,7 +1146,7 @@ Erika Bolnbach-Bolnbach;2017-08-06;atzleriwona@web.de;0807034829;(07241) 001911;
 Yvette Gröttner B.Sc.;1976-02-08;amies@stiebitz.de;+49(0)5060 233940;+49(0)2684182702;Krokergasse;701;05497;Hainichen
 """.trimIndent()
 
-fun parseCsvPersons(fakeData: String, maxId: Int = 100) = fakeData.split('\n').withIndex().map { (index, data) ->
+fun parseCsvPersons(fakeData: String ) = fakeData.split('\n').withIndex().map { (index, data) ->
     val fields = data.split(';')
     Person(
         uniqueId(),
@@ -1183,8 +1184,8 @@ val jobSet = listOf(
 )
 
 val fakeData = mapOf(
-    false to parseCsvPersons(largeFakePersonSet),
-    true to parseCsvPersons(veryLargeFakePersonSet)
+    false to parseCsvPersons(veryLargeFakePersonSet).take(40),
+    true to parseCsvPersons(extremlyLargeFakePersonSet).take(250)
 )
 
 
@@ -1262,6 +1263,10 @@ fun RenderContext.tableDemo(): Div {
 
         }
 
+        val doubleClickStore = object : RootStore<Person>(Person()) {
+
+        }
+
         val selectionModeStore = storeOf(TableComponent.Companion.SelectionMode.NONE)
         componentFrame {
             stackUp {
@@ -1282,6 +1287,14 @@ fun RenderContext.tableDemo(): Div {
             paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
         }
 
+        doubleClickStore.data.render { p ->
+            if( p.fullName.isNotEmpty() ) {
+                paragraph { +"DoubleClick Person ${p.id} - ${p.fullName}" }
+            } else {
+                paragraph { +"Use dbClick to get the Row" }
+            }
+        }
+
         val newSelectedStore = storeOf(Person())
         ul {
             newSelectedStore.data.render { item ->
@@ -1297,18 +1310,15 @@ fun RenderContext.tableDemo(): Div {
         }
 
         selectionModeStore.data.render { selectionMode ->
-            table(rowIdProvider = Person::id) {
-                caption(selectionModeStore.data.map { mode ->
-                    "Table with \"${mode.name}\" Selection Mode "
-                })
-                tableStore(TableStore)
-                selectedRows(selectedStore.data)
-                selectedAllRowEvents = selectedStore.update
-                selectedRowEvent = selectedStore.toggle
-                defaultMinWidth = "250px"
-                selectionMode(selectionMode)
+          dataTable(rowIdProvider = Person::id) {
+                    caption(selectionModeStore.data.map { mode ->
+                        "Table with \"${mode.name}\" Selection Mode "
+                    })
+                    tableStore(TableStore)
+                    selectedRows(selectedStore.data)
+                    selectionMode(selectionMode)
 
-                /*
+                    /*
             // search {} // for default
             search {
                 fun {
@@ -1320,34 +1330,34 @@ fun RenderContext.tableDemo(): Div {
 
              */
 
-                // TODO: Events
-                events {
-                    // TODO Activate if checkboxes are correctly handled!
-                    //selectedRows handledBy multipleSelectedStore.update
-                    selectedRow handledBy newSelectedStore.update
-                }
-
-                defaultThStyle {
-                    {
-                       // background { color { "#1fd257" } }
+                    events {
+                        selectedRows handledBy selectedStore.update
+                        selectedRow handledBy selectedStore.toggle
+                        dbClicks handledBy doubleClickStore.update
                     }
-                }
 
-                selectedRowStyle {
-                    children("td") {
-                        background {
-                            color {
-                                info.important
+                    defaultThStyle {
+                        {
+                            // background { color { "#1fd257" } }
+                        }
+                    }
+
+                    selectedRowStyle {
+                        children("td") {
+                            background {
+                                color {
+                                    info.important
+                                }
                             }
                         }
                     }
-                }
 
 
                     columns {
                         column("ID") {
                             lens { personIdLens + Formats.intFormat }
-                            width { minmax { "80%" } }
+                            width { minmax { "80px" } }
+
                         }
                         column("Name") {
                             lens { fullNameLens }
@@ -1429,16 +1439,23 @@ fun RenderContext.tableDemo(): Div {
                             sorting { TableComponent.Companion.Sorting.DISABLED }
                         }
                         column("Mobile") { lens { mobileLens } }
-                        column("E-Mail") { lens { emailLens } }
+                        column("E-Mail") {
+                            lens { emailLens }
+                            width { minmax { "2fr" } }
+                        }
                         //}
                     }
 
                     sorter { SimpleSorter() }
                     // TODO: Make nicer API for predefined sorting renderer?
                     // like "variants" for styling?
-                    sortingRenderer { TogglingSymbolSortingRenderer() }
+                    //sortingRenderer { TogglingSymbolSortingRenderer() }
 
-            }
+                    options {
+                       width(null)
+                    }
+
+                }
         }
     }
 }

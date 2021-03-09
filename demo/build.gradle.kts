@@ -3,7 +3,10 @@ plugins {
 }
 
 kotlin {
-    js().browser()
+    js(IR) {
+        browser()
+    }.binaries.executable()
+
     sourceSets {
         all {
             languageSettings.apply {
@@ -21,7 +24,7 @@ kotlin {
                 implementation(project(":datatable"))
                 implementation(project(":menu"))
                 implementation("dev.fritz2:components:${rootProject.ext["fritz2Version"]}")
-                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.1.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.1.1")
             }
         }
 
