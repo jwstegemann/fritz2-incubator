@@ -18,9 +18,6 @@ import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.events.MouseEvent
 
 
-private const val menuToggleIdPrefix = "menu-toggle"
-
-
 private val menuEntryCss = staticStyle("menu-item") {
     width { "100%" }
     paddings {
@@ -82,52 +79,6 @@ val menuPlacements = object : MenuPlacements {
 }
 
 
-private object GlobalDropdownStore : RootStore<List<String>>(listOf()) {
-
-    private var listeningToWindowEvents = false
-
-    val register = handle<String> { currentlyOpen, id -> listOf(id) + currentlyOpen.toMutableList() }
-
-    val determineChildrenToDismiss = handleAndEmit<MouseEvent, String> { currentlyOpen, mouseEvent ->
-        val newList = currentlyOpen.toMutableList()
-        for (id in currentlyOpen) {
-            if (isClickInsideElement(mouseEvent, id)) {
-                break
-            } else {
-                newList -= id
-                emit(id) // dropdown with id should be closed
-            }
-        }
-        newList
-    }
-
-    private fun isClickInsideElement(event: MouseEvent, elementId: String): Boolean {
-        document.getElementById(elementId)?.let {
-            val bounds = it.getBoundingClientRect()
-            return event.x >= bounds.left
-                    && event.x <= bounds.right
-                    && event.y >= bounds.top
-                    && event.y <= bounds.bottom
-        }
-        return false
-    }
-
-    fun listenToWindowEvents(renderContext: RenderContext) {
-        if (!listeningToWindowEvents) {
-            renderContext.apply {
-                Window.clicks.events.filter { event ->
-                    document.elementFromPoint(event.x, event.y)?.let { element ->
-                        return@filter element.closest("[id^='$menuToggleIdPrefix']") == null
-                    }
-                    false
-                } handledBy determineChildrenToDismiss
-            }
-            listeningToWindowEvents = true
-        }
-    }
-}
-
-
 class MenuComponent {
 
     companion object {
@@ -145,7 +96,10 @@ class MenuComponent {
             radius { "6px" }
             background { color { base } }
 
-            paddings { horizontal { small } }
+            paddings {
+                horizontal { small }
+                bottom { small }
+            }
             minWidth { minContent }
 
             boxShadow { raised }
@@ -158,10 +112,7 @@ class MenuComponent {
     }
 
     private val visibilityStore = object : RootStore<Boolean>(false) {
-        val show = handleAndEmit<Unit, Unit> { _, _ ->
-            emit(Unit)
-            true
-        }
+        val show = handle<Unit> { _, _ -> true }
         val dismiss = handle<Unit> { _, _ -> false }
     }
 
@@ -179,15 +130,11 @@ class MenuComponent {
         val placement = placement.value.invoke(menuPlacements)
 
         renderContext.apply {
-
-            // register dropdown so it can be managed by the globalDropdownStore:
-            visibilityStore.show.map { id } handledBy GlobalDropdownStore.register
-            GlobalDropdownStore.listenToWindowEvents(this)
-
             flexBox(baseClass = menuContainerCss, styling = placement.containerLayout) {
 
-                box(id = "$menuToggleIdPrefix-${uniqueId()}") {
+                box(prefix = "menu-toggle") {
                     toggle.value(this)
+                    // TODO: Close menu when clicking outside
                     clicks.events.map { } handledBy visibilityStore.show
                 }
 
@@ -202,18 +149,31 @@ class MenuComponent {
                             ) {
                                 items.value?.invoke(this)
                             }
-
-                            GlobalDropdownStore.determineChildrenToDismiss
-                                .filter { toClose -> toClose == id }
-                                .map { } handledBy visibilityStore.dismiss
-
+                            handleOutsideClicks(id)
                         } else {
-                            box { }
+                            box { /* just an empty placeholder */ }
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun RenderContext.handleOutsideClicks(menuDropdownId: String) {
+        Window.clicks.events
+            .filter { event ->
+                val dropdownElement = document.getElementById(menuDropdownId)
+                dropdownElement?.let {
+                    val bounds = it.getBoundingClientRect()
+                    // Only handle clicks outside of the menu dropdown
+                    return@filter !(event.x >= bounds.left
+                            && event.x <= bounds.right
+                            && event.y >= bounds.top
+                            && event.y <= bounds.bottom)
+                }
+                false
+            }
+            .map {  } handledBy visibilityStore.dismiss
     }
 }
 
