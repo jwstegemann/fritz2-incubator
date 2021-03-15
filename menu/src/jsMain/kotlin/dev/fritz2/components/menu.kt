@@ -18,15 +18,16 @@ import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.events.MouseEvent
 
 
-private val menuEntryCss = staticStyle("menu-item") {
+private val staticMenuEntryCss = staticStyle("menu-item") {
     width { "100%" }
     paddings {
+        horizontal { small }
         vertical { smaller }
     }
     radius { "6px" }
 }
 
-private val menuDividerCss = staticStyle("menu-divider") {
+private val staticMenuDividerCss = staticStyle("menu-divider") {
     width { "100%" }
     height { "1px" }
     margins { vertical { smaller } }
@@ -40,6 +41,10 @@ private val menuOptionStyle: Style<BasicParams> = {
 
 // TODO: Move styles into theme
 
+interface MenuStyles {
+    val placements: MenuPlacements
+}
+
 interface MenuPlacements {
     val left: MenuPlacement
     val right: MenuPlacement
@@ -51,29 +56,32 @@ interface MenuPlacement {
     val dropdownStyle: Style<BasicParams>
 }
 
-val menuPlacements = object : MenuPlacements {
-    override val left = object : MenuPlacement {
-        override val containerLayout: Style<FlexParams> = {
-            direction { rowReverse }
+val menuStyles = object : MenuStyles {
+
+    override val placements = object : MenuPlacements {
+        override val left = object : MenuPlacement {
+            override val containerLayout: Style<FlexParams> = {
+                direction { rowReverse }
+            }
+            override val dropdownStyle: Style<BasicParams> = {
+                css("transform: translateX(-100%)")
+            }
         }
-        override val dropdownStyle: Style<BasicParams> = {
-            css("transform: translateX(-100%)")
+        override val right = object : MenuPlacement {
+            override val containerLayout: Style<FlexParams> = {
+                direction { row }
+            }
+            override val dropdownStyle: Style<BasicParams> = {
+                // No special styles needed
+            }
         }
-    }
-    override val right = object : MenuPlacement {
-        override val containerLayout: Style<FlexParams> = {
-            direction { row }
-        }
-        override val dropdownStyle: Style<BasicParams> = {
-            // No special styles needed
-        }
-    }
-    override val bottom = object : MenuPlacement {
-        override val containerLayout: Style<FlexParams> = {
-            direction { column }
-        }
-        override val dropdownStyle: Style<BasicParams> = {
-            // No special styles needed
+        override val bottom = object : MenuPlacement {
+            override val containerLayout: Style<FlexParams> = {
+                direction { column }
+            }
+            override val dropdownStyle: Style<BasicParams> = {
+                // No special styles needed
+            }
         }
     }
 }
@@ -82,24 +90,20 @@ val menuPlacements = object : MenuPlacements {
 class MenuComponent {
 
     companion object {
-        private val menuContainerCss = staticStyle("menu-container") {
+        private val staticContainerCss = staticStyle("menu-container") {
             width { minContent }
         }
 
-        private val menuDropdownContainerCss = staticStyle("menu-dropdown-container") {
+        private val staticDropdownContainerCss = staticStyle("menu-dropdown-container") {
             position { relative { } }
         }
 
-        private val menuDropdownCss = staticStyle("menu-dropdown") {
+        private val staticDropdownCss = staticStyle("menu-dropdown") {
             position { absolute { } }
             zIndex { "100" }
             radius { "6px" }
             background { color { base } }
 
-            paddings {
-                horizontal { small }
-                bottom { small }
-            }
             minWidth { minContent }
 
             boxShadow { raised }
@@ -127,29 +131,28 @@ class MenuComponent {
         prefix: String,
         renderContext: RenderContext,
     ) {
-        val placement = placement.value.invoke(menuPlacements)
+        val placement = placement.value.invoke(menuStyles.placements)
 
         renderContext.apply {
-            flexBox(baseClass = menuContainerCss, styling = placement.containerLayout) {
+            flexBox(baseClass = staticContainerCss, styling = placement.containerLayout) {
 
-                box(prefix = "menu-toggle") {
+                box(id = "menu-toggle-${uniqueId()}") {
                     toggle.value(this)
-                    // TODO: Close menu when clicking outside
                     clicks.events.map { } handledBy visibilityStore.show
                 }
 
-                box(baseClass = menuDropdownContainerCss) {
+                box(baseClass = staticDropdownContainerCss) {
                     visibilityStore.data.render { visible ->
                         if (visible) {
                             box(
                                 styling = styling + placement.dropdownStyle,
-                                baseClass = baseClass?.let { it + menuDropdownCss } ?: menuDropdownCss,
+                                baseClass = baseClass?.let { it + staticDropdownCss } ?: staticDropdownCss,
                                 id = id,
                                 prefix = prefix
                             ) {
                                 items.value?.invoke(this)
                             }
-                            handleOutsideClicks(id)
+                            listenToWindowEvents(id)
                         } else {
                             box { /* just an empty placeholder */ }
                         }
@@ -159,10 +162,10 @@ class MenuComponent {
         }
     }
 
-    private fun RenderContext.handleOutsideClicks(menuDropdownId: String) {
+    private fun RenderContext.listenToWindowEvents(dropdownId: String) {
         Window.clicks.events
             .filter { event ->
-                val dropdownElement = document.getElementById(menuDropdownId)
+                val dropdownElement = document.getElementById(dropdownId)
                 dropdownElement?.let {
                     val bounds = it.getBoundingClientRect()
                     // Only handle clicks outside of the menu dropdown
@@ -173,7 +176,7 @@ class MenuComponent {
                 }
                 false
             }
-            .map {  } handledBy visibilityStore.dismiss
+            .map { } handledBy visibilityStore.dismiss
     }
 }
 
@@ -181,7 +184,7 @@ fun RenderContext.menu(
     styling: BasicParams.() -> Unit = {},
     baseClass: StyleClass? = null,
     id: String = "menu-dropdown-${uniqueId()}",
-    prefix: String = "menu",
+    prefix: String = "menu-dropdown",
     build: MenuComponent.() -> Unit,
 ) = MenuComponent()
     .apply(build)
@@ -192,11 +195,9 @@ class MenuItemComponent : EventProperties<HTMLDivElement> by EventMixin() {
 
     companion object {
         private val menuItemStyle: Style<FlexParams> = {
-            alignItems { AlignItemsValues.center }
+            alignItems { center }
             hover {
-                background {
-                    color { lightestGray }
-                }
+                background { color { lightestGray } }
                 css("filter: brightness(90%);")
             }
         }
@@ -216,7 +217,7 @@ class MenuItemComponent : EventProperties<HTMLDivElement> by EventMixin() {
         renderContext.apply {
             flexBox(
                 styling = styling + menuItemStyle,
-                baseClass = baseClass?.let { it + menuEntryCss } ?: menuEntryCss,
+                baseClass = baseClass?.let { it + staticMenuEntryCss } ?: staticMenuEntryCss,
                 id = id,
                 prefix = prefix,
             ) {
@@ -225,7 +226,8 @@ class MenuItemComponent : EventProperties<HTMLDivElement> by EventMixin() {
                 }
                 label.value?.let {
                     (::label.styled {
-                        margins { left { tiny } }
+                        width { "100%" }
+                        margins { horizontal { tiny } }
                         css("white-space: nowrap")
                     }) { +it }
                 }
@@ -262,7 +264,6 @@ fun RenderContext.menuItem(
 
 class MenuGroupComponent {
     val title = ComponentProperty<String?>(value = null)
-    val titleStyle = ComponentProperty<Style<BasicParams>> { }
     val items = ComponentProperty<(RenderContext.() -> Unit)?>(value = null)
 
     fun render(
@@ -275,16 +276,14 @@ class MenuGroupComponent {
         renderContext.apply {
             stackUp(
                 styling = styling,
-                baseClass = baseClass?.let { it + menuEntryCss } ?: menuEntryCss,
+                baseClass = baseClass,
                 id = id,
                 prefix = prefix
             ) {
                 spacing { none }
                 items {
                     title.value?.let {
-                        (::h5.styled(styling = titleStyle.value + {
-                            margins { bottom { smaller } }
-                        })) { +it }
+                        h5(baseClass = staticMenuEntryCss.name) { +it }
                     }
                     this@MenuGroupComponent.items.value?.invoke(this)
                 }
@@ -303,7 +302,7 @@ fun RenderContext.menuGroup(
     .apply(build)
     .render(styling, baseClass, id, prefix, this)
 
-fun RenderContext.menuCheckboxGroup(
+fun RenderContext.checkboxMenuGroup(
     styling: BasicParams.() -> Unit = {},
     baseClass: StyleClass? = null,
     id: String? = null,
@@ -314,16 +313,22 @@ fun RenderContext.menuCheckboxGroup(
 ) {
     menuGroup(styling, baseClass, id, prefix) {
         title(title)
-        titleStyle { margins { bottom { smaller } } }
         items {
-            checkboxGroup(items = options, store = store) {
+            checkboxGroup(
+                baseClass = staticMenuEntryCss,
+                styling = {
+                    paddings { top { none } }
+                },
+                items = options,
+                store = store
+            ) {
                 itemStyle(menuOptionStyle)
             }
         }
     }
 }
 
-fun RenderContext.menuRadioGroup(
+fun RenderContext.radioMenuGroup(
     styling: BasicParams.() -> Unit = {},
     baseClass: StyleClass? = null,
     id: String? = null,
@@ -334,9 +339,15 @@ fun RenderContext.menuRadioGroup(
 ) {
     menuGroup(styling, baseClass, id, prefix) {
         title(title)
-        titleStyle { margins { bottom { smaller } } }
         items {
-            radioGroup(items = options, store = store) {
+            radioGroup(
+                baseClass = staticMenuEntryCss,
+                styling = {
+                    paddings { top { none } }
+                },
+                items = options,
+                store = store
+            ) {
                 itemStyle(menuOptionStyle)
             }
         }
@@ -344,4 +355,4 @@ fun RenderContext.menuRadioGroup(
 }
 
 
-fun RenderContext.menuDivider() = box(baseClass = menuDividerCss) { }
+fun RenderContext.menuDivider() = box(baseClass = staticMenuDividerCss) { }

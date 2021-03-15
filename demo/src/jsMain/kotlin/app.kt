@@ -84,16 +84,16 @@ fun main() {
                         text("Test")
                     }
                 }
-                placement { right }
+                placement { bottom }
                 items {
-                    menuCheckboxGroup(
+                    checkboxMenuGroup(
                         title = "Checkboxes",
                         options = listOf("Option 1", "Option 2", "Option 3")
                     )
 
                     menuDivider()
 
-                    menuRadioGroup(
+                    radioMenuGroup(
                         title = "Radios",
                         options = listOf("Option 1", "Option 2", "Option 3")
                     )
@@ -104,6 +104,8 @@ fun main() {
                         leftIcon { ban }
                         label("This is a simple menu-item.")
                     } handledBy menuClickStore.log
+
+                    menuDivider()
 
                     menuGroup {
                         title("Menu-Group")
