@@ -101,11 +101,12 @@ open class MenuComponent : Component<Unit> {
 
         private val staticDropdownCss = staticStyle("menu-dropdown") {
             position { absolute { } }
-            zIndex { "100" }
-            radius { "6px" }
-            background { color { base } }
-
             minWidth { minContent }
+            zIndex { "100" }
+
+            background { color { base } }
+            radius { "6px" }
+            paddings { vertical { smaller } }
 
             boxShadow { raised }
 

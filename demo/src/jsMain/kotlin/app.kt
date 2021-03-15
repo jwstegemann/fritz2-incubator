@@ -74,10 +74,6 @@ fun main() {
     render("#target") {
         h1 { +"fritz incubator - Demo" }
         div {
-            val menuClickStore = object : RootStore<Unit>(Unit) {
-                val log = handle<Unit> { _, _ -> console.log("Menu item clicked!") }
-            }
-
             menu {
                 toggle {
                     pushButton {
@@ -86,27 +82,11 @@ fun main() {
                 }
                 placement { bottom }
                 items {
-                    checkboxMenuGroup(
-                        title = "Checkboxes",
-                        options = listOf("Option 1", "Option 2", "Option 3")
-                    )
-
-                    menuDivider()
-
-                    radioMenuGroup(
-                        title = "Radios",
-                        options = listOf("Option 1", "Option 2", "Option 3")
-                    )
-
-                    menuDivider()
-
                     menuItem {
                         leftIcon { ban }
                         label("This is a simple menu-item.")
-                    } handledBy menuClickStore.log
-
+                    }
                     menuDivider()
-
                     menuGroup {
                         title("Menu-Group")
                         items {
@@ -120,6 +100,16 @@ fun main() {
                             }
                         }
                     }
+                    menuDivider()
+                    checkboxMenuGroup(
+                        title = "Checkboxes",
+                        options = listOf("Option 1", "Option 2", "Option 3")
+                    )
+                    menuDivider()
+                    radioMenuGroup(
+                        title = "Radios",
+                        options = listOf("Option 1", "Option 2", "Option 3")
+                    )
                 }
             }
         }
