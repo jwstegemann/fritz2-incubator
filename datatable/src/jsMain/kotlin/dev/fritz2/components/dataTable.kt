@@ -83,13 +83,13 @@ interface SortingRenderer {
 
 class DefaultSortingRenderer() : SortingRenderer {
     val sortDirectionSelected: Style<BasicParams> = {
-        color { base }
+        color { neutral }
     }
 
     val sortDirectionIcon: Style<BasicParams> = {
         width { "2rem" }
         height { "2rem" }
-        color { gray }
+        color { primary.baseContrast }
         css("cursor:pointer;")
     }
 
@@ -231,16 +231,16 @@ class TableComponent<T> {
 
         val defaultTr: Style<BasicParams> = {
             children("&:nth-child(even) td") {
-                background { color { lighterGray } }
+                background { color { gray100 } }
             }
         }
 
         val defaultTh: Style<BasicParams> = {
             background {
-                color { primary }
+                color { primary.base }
             }
             verticalAlign { middle }
-            color { base }
+            color { primary.baseContrast }
             fontSize { normal }
             position { relative {} }
             paddings {
@@ -252,7 +252,7 @@ class TableComponent<T> {
                 right {
                     width { "1px" }
                     style { solid }
-                    color { lightGray }
+                    color { gray300 }
                 }
             }
 
@@ -265,7 +265,7 @@ class TableComponent<T> {
                 right { large }
             }
             background {
-                color { lightGray }
+                color { gray300 }
             }
         }
 
@@ -512,7 +512,7 @@ class TableComponent<T> {
         border {
             width { thin }
             style { solid }
-            color { dark }
+            color { gray700 }
         }
     }
 
@@ -542,7 +542,7 @@ class TableComponent<T> {
 
     var selectedRowStyleClass: StyleClass = staticStyle(
         "selectedRow", """
-        td { background-color: ${Theme().colors.primaryEffect} !important; }        
+        td { background-color: ${Theme().colors.secondary.base} !important; }        
     """.trimIndent()
     )
 
@@ -689,7 +689,7 @@ class TableComponent<T> {
 
     private fun <I> renderFixedHeaderTable(
         styling: GridParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String,
         rowIdProvider: (T) -> I,
@@ -735,7 +735,7 @@ class TableComponent<T> {
 
     private fun <I> renderSimpleTable(
         styling: GridParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String,
         rowIdProvider: (T) -> I,
@@ -872,7 +872,7 @@ class TableComponent<T> {
 
 fun <T, I> RenderContext.dataTable(
     styling: GridParams.() -> Unit = {},
-    baseClass: StyleClass? = null,
+    baseClass: StyleClass = StyleClass.None,
     id: String? = null,
     prefix: String = TableComponent.prefix,
     rowIdProvider: (T) -> I,
