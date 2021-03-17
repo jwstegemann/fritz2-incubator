@@ -1342,6 +1342,7 @@ fun RenderContext.tableDemo(): Div {
                         }
                     }
 
+              /*
                     selectedRowStyle {
                         children("td") {
                             background {
@@ -1351,6 +1352,8 @@ fun RenderContext.tableDemo(): Div {
                             }
                         }
                     }
+
+               */
 
 
                     columns {

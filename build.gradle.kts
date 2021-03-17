@@ -3,15 +3,13 @@ plugins {
     id("org.jetbrains.dokka") version "1.4.10.2"
 }
 
-ext["fritz2Version"] = "0.10-SNAPSHOT"
+ext["fritz2Version"] = "0.9.1"
 
 allprojects {
     //manage common setting and dependencies
     repositories {
-        //FIXME: remove after release
-        maven("https://oss.jfrog.org/artifactory/jfrog-dependencies")
+        // mavenLocal()
         mavenCentral()
-        jcenter()
         maven("https://dl.bintray.com/kotlin/kotlin-dev")
         maven("https://dl.bintray.com/kotlin/kotlin-eap")
         maven("https://kotlin.bintray.com/kotlinx/")
@@ -20,7 +18,7 @@ allprojects {
 
 subprojects {
     group = "dev.fritz2"
-    version = "0.10-SNAPSHOT"
+    version = "0.9.1"
 }
 
 tasks.dokkaHtmlMultiModule.configure {
