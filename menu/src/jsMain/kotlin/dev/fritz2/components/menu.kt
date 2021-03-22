@@ -64,7 +64,7 @@ val menuStyles = object : MenuStyles {
 }
 
 
-private val staticMenuEntryCss = staticStyle("menu-item") {
+private val staticMenuEntryCss = staticStyle("menu-entry") {
     width { "100%" }
     paddings {
         horizontal { small }
@@ -214,7 +214,7 @@ class MenuEntriesContext {
         fun build(): MenuEntry
     }
 
-    class MenuItemContext : MenuEntryContext {
+    class ItemContext : MenuEntryContext {
         val leftIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
         val text = ComponentProperty("")
         val rightIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
@@ -226,15 +226,17 @@ class MenuEntriesContext {
         )
     }
 
-    class MenuSubheaderContext : MenuEntryContext {
-        val text = ComponentProperty<String>("")
-
-        override fun build(): MenuEntry = MenuSubheader(
-            text.value
-        )
+    class CustomContentContext : MenuEntryContext {
+        val content = ComponentProperty<RenderContext.() -> Unit> { }
+        override fun build(): MenuEntry = MenuCustomContent(content.value)
     }
 
-    class MenuDividerContext : MenuEntryContext {
+    class SubheaderContext : MenuEntryContext {
+        val text = ComponentProperty("")
+        override fun build(): MenuEntry = MenuSubheader(text.value)
+    }
+
+    class DividerContext : MenuEntryContext {
         override fun build(): MenuEntry = MenuDivider()
     }
 
@@ -244,19 +246,24 @@ class MenuEntriesContext {
         get() = _entries.toList()
 
 
-    fun item(expression: MenuItemContext.() -> Unit) = MenuItemContext()
+    fun item(expression: ItemContext.() -> Unit) = ItemContext()
         .apply(expression)
         .build()
         .also { _entries += it }
 
-    fun subheader(expression: MenuSubheaderContext.() -> Unit) = MenuSubheaderContext()
+    fun custom(content: RenderContext.() -> Unit) = CustomContentContext()
+        .apply { content(content) }
+        .build()
+        .also { _entries += it }
+
+    fun subheader(expression: SubheaderContext.() -> Unit) = SubheaderContext()
         .apply(expression)
         .build()
         .also { _entries += it }
 
     fun subheader(text: String) = subheader { text(text) }
 
-    fun divider(expression: MenuDividerContext.() -> Unit = { }) = MenuDividerContext()
+    fun divider(expression: DividerContext.() -> Unit = { }) = DividerContext()
         .apply(expression)
         .build()
         .also { _entries += it }
@@ -317,6 +324,32 @@ data class MenuItem(
                     icon { def(it) }
                 }
                 //events.value.invoke(this)
+            }
+        }
+    }
+}
+
+data class MenuCustomContent(
+    val content: RenderContext.() -> Unit
+) : MenuEntry {
+    override fun render(
+        context: RenderContext,
+        styling: BoxParams.() -> Unit,
+        baseClass: StyleClass,
+        id: String?,
+        prefix: String
+    ) {
+        context.apply {
+            box(
+                styling = {
+                    this as BoxParams
+                    styling()
+                },
+                baseClass + staticMenuEntryCss,
+                id,
+                prefix
+            ) {
+                content(this)
             }
         }
     }

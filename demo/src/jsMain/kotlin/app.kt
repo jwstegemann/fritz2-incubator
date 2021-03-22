@@ -98,16 +98,16 @@ fun main() {
                         leftIcon { camera }
                         text("Menu-item in a group 2.")
                     }
-                    /*divider()
-                    checkboxMenuGroup(
-                        title = "Checkboxes",
-                        options = listOf("Option 1", "Option 2", "Option 3")
-                    )
                     divider()
-                    radioMenuGroup(
-                        title = "Radios",
-                        options = listOf("Option 1", "Option 2", "Option 3")
-                    )*/
+                    subheader("Custom menu entries:")
+                    custom {
+                        checkboxGroup(
+                            items = listOf("Item 1", "Item 2")
+                        )
+                    }
+                    custom {
+                        spinner { }
+                    }
                 }
             }
         }
