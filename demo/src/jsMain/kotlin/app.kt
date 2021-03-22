@@ -45,7 +45,7 @@ fun RenderContext.componentFrame(init: Div.() -> Unit): Div { //Auslagerung von 
         }
         border {
             width { thin }
-            color { lightGray }
+            color { gray300 }
         }
         radius { larger }
         padding { normal }
