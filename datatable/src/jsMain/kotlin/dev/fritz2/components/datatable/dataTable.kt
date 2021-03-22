@@ -236,9 +236,13 @@ class StateStore(private val sortingPlanReducer: SortingPlanReducer) : RootStore
 class RowSelectionStore<T> : MultiSelectionStore<T>() {
     val selectRows = toggle
 
-    val selectRow = handleAndEmit<T, T> { _, new ->
+    val selectRow = handleAndEmit<T?, T?> { _, new ->
         emit(new)
-        listOf(new)
+        if (new == null) {
+            emptyList()
+        } else {
+            listOf(new)
+        }
     }
 
     val dbClickedRow = handleAndEmit<T, T> { selectedRows, new ->

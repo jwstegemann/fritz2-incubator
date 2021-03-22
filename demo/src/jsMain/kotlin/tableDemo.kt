@@ -1237,39 +1237,10 @@ object Formats {
 fun RenderContext.tableDemo() {
     toggle.data.map { fakeData[it]!! } handledBy TableStore.update
 
-
-    val selectedStore = object : RootStore<List<Person>>(emptyList()) {
-
-        val add = handle<Person> { list, selected ->
-            if (!list.contains(selected)) {
-                list + selected
-            } else {
-                list
-            }
-        }
-
-        val toggle = handle<Person> { list, item ->
-            console.info(item)
-            if (!list.contains(item)) {
-                list + item
-            } else {
-                list.filter { it != item }
-            }
-        }
-
-        val clearList = handle {
-            emptyList()
-        }
-
-    }
-
-    val doubleClickStore = object : RootStore<Person>(Person()) {
-
-    }
-
-    val selectionModeStore = storeOf(TableComponent.Companion.SelectionMode.NONE)
-    val newSelectedStore = storeOf(Person())
-    val multipleSelectedStore = storeOf(emptyList<Person>())
+    val selectionModeStore = storeOf(TableComponent.SelectionMode.Single)
+    val doubleClickStore = storeOf(Person())
+    val singleSelectionStore = storeOf<Person?>(null)
+    val multiSelectionStore = storeOf(emptyList<Person>())
 
 
 
@@ -1299,18 +1270,35 @@ fun RenderContext.tableDemo() {
 
         nav {
             navLink { text("toggle data") }.map { !toggle.current } handledBy toggle.update
-            TableComponent.Companion.SelectionMode.values().map { mode ->
+            TableComponent.SelectionMode.values().map { mode ->
                 navLink { text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
             }
         }
         main {
-            selectedStore.data.render { list ->
-                paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
-            }
+            selectionModeStore.data.render {
+                when (it) {
+                    TableComponent.SelectionMode.Single -> {
+                        h2 { +"Single Selection" }
+                        singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
+                            .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
+                        ul {
+                            li { singleSelectionStore.data.asText() }
+                        }
+                    }
+                    TableComponent.SelectionMode.Multi -> {
+                        h2 { +"Multi Selection" }
+                        multiSelectionStore.data.render { list ->
+                            paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
+                        }
 
-            ul {
-                selectedStore.data.renderEach {
-                    li { +it.toString() }
+                        ul {
+                            multiSelectionStore.data.renderEach {
+                                li { +it.toString() }
+                            }
+                        }
+                    }
+                    else -> {
+                    }
                 }
             }
 
@@ -1321,25 +1309,13 @@ fun RenderContext.tableDemo() {
                     paragraph { +"Use dbClick to get the Row" }
                 }
             }
-            ul {
-                newSelectedStore.data.render { item ->
-                    li { +item.fullName }
-                }
-            }
-            ul {
-                multipleSelectedStore.data.renderEach { item ->
-                    li { +item.fullName }
-                }
-            }
 
             selectionModeStore.data.render { selectionMode ->
-                dataTable(rowIdProvider = Person::id) {
+                dataTable(dataStore = TableStore, rowIdProvider = Person::id) {
                     caption(selectionModeStore.data.map { mode ->
                         "Table with \"${mode.name}\" Selection Mode "
                     })
-                    dataStore(TableStore)
-                    selectedRows(selectedStore.data)
-                    selectionMode(selectionMode)
+
 
                     /*
                     // Idee, wie man Modus von Darstellung/Mechanismus trennen kann
@@ -1347,20 +1323,66 @@ fun RenderContext.tableDemo() {
                     // mode: default: single -> strategy: click
                     // mode: none -> strategy: none
                     // -> Damit muss man kaum etwas spezifizieren!
-                    options {
-                        selection {
-                            mode { single } // none, multi
-                            strategy { checkbox } // click
-                            customStrategy(SomeImplementation) // pass some custom strategy
-                        }
-                    }
                      */
+                    selection {
+                        when (selectionMode) {
+                            TableComponent.SelectionMode.Single -> {
+                                single {
+                                    row(singleSelectionStore)
+                                    //selected(singleSelectionStore.data)
+                                }
+                            }
+                            TableComponent.SelectionMode.Multi -> {
+                                multi {
+                                    rows(multiSelectionStore)
+                                    //selected(multiSelectionStore.data)
+                                }
+                            }
+                        }
+                        // ohne -> weder single noch multi setzen!
+                        //strategy { checkbox } // click
+                        //customStrategy(SomeImplementation) // pass some custom strategy
+                    }
 
                     events {
-                        selectedRows handledBy selectedStore.update
-                        selectedRow handledBy selectedStore.toggle
+                        /*
+                        when (selectionMode) {
+                            TableComponent.SelectionMode.Single -> {
+                                selectedRow handledBy singleSelectionStore.update
+                            }
+                            TableComponent.SelectionMode.Multi -> {
+                                selectedRows handledBy multiSelectionStore.update
+                            }
+                        }
+
+                         */
                         dbClicks handledBy doubleClickStore.update
                     }
+
+                    options {
+                        height("auto")
+                        maxHeight("70vh")
+                        sorting {
+                            renderer(object : SortingRenderer {
+                                private val delegate = SingleArrowSortingRenderer()
+                                override fun renderSortingActive(context: Div, sorting: Sorting) {
+                                    console.log("I render it my way!")
+                                    delegate.renderSortingActive(context, sorting)
+                                }
+
+                                override fun renderSortingLost(context: Div) {
+                                    delegate.renderSortingLost(context)
+                                }
+
+                                override fun renderSortingDisabled(context: Div) {
+                                    context.apply {
+                                        icon { fromTheme { fritz2 } }
+                                    }
+                                }
+                            })
+                        }
+                    }
+
 
                     selectedRowStyle {
                         children("td") {
@@ -1381,9 +1403,9 @@ fun RenderContext.tableDemo() {
                         }
                         column("Name") {
                             lens { fullNameLens }
-                            content{ context, _, rowStore ->
+                            content { context, _, rowStore ->
                                 context.apply {
-                                    inputField(store = rowStore!!.sub(fullNameLens)) {  }
+                                    inputField(store = rowStore!!.sub(fullNameLens)) { }
                                 }
 
                             }
@@ -1470,31 +1492,6 @@ fun RenderContext.tableDemo() {
                         }
                         //}
                     }
-
-                    options {
-                        height("auto")
-                        maxHeight("70vh")
-                        sorting {
-                            renderer(object : SortingRenderer {
-                                private val delegate = SingleArrowSortingRenderer()
-                                override fun renderSortingActive(context: Div, sorting: Sorting) {
-                                    console.log("I render it my way!")
-                                    delegate.renderSortingActive(context, sorting)
-                                }
-
-                                override fun renderSortingLost(context: Div) {
-                                    delegate.renderSortingLost(context)
-                                }
-
-                                override fun renderSortingDisabled(context: Div) {
-                                    context.apply {
-                                        icon { fromTheme { fritz2 } }
-                                    }
-                                }
-                            })
-                        }
-                    }
-
                 }
             }
         }

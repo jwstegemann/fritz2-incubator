@@ -22,7 +22,8 @@ import kotlinx.coroutines.flow.*
  *  tfoot what will we do with this section of a table?
  *
  */
-class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit> {
+class TableComponent<T, I>(protected val dataStore: RootStore<List<T>>, protected val rowIdProvider: (T) -> I) :
+    Component<Unit> {
     companion object {
         const val prefix = "table"
         val staticCss = staticStyle(
@@ -56,6 +57,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
             """
         )
 
+        // TODO: Alles ins Theme packen!
 
         val sorterStyle: Style<BasicParams> = {
             display { flex }
@@ -118,6 +120,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
             }
         }
 
+        /*
         enum class SelectionMode {
             NONE,
             SINGLE,
@@ -125,6 +128,9 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
             MULTI
         }
 
+         */
+
+        // TODO: Ggf. ausbauen -> Wozu notwendig?
         enum class CaptionPlacement {
             TOP,
             BOTTOM
@@ -344,16 +350,11 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
         }
     }
 
-    var selectionMode: SelectionMode = SelectionMode.NONE
-    fun selectionMode(value: SelectionMode) {
-        selectionMode = value
-    }
-
     val selectionStore: RowSelectionStore<T> = RowSelectionStore()
 
     class EventsContext<T>(rowSelectionStore: RowSelectionStore<T>) {
         val selectedRows: Flow<List<T>> = rowSelectionStore.data
-        val selectedRow: Flow<T> = rowSelectionStore.selectRow
+        val selectedRow: Flow<T?> = rowSelectionStore.selectRow
         val dbClicks: Flow<T> = rowSelectionStore.dbClickedRow
     }
 
@@ -361,16 +362,12 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
         EventsContext(selectionStore).expr()
     }
 
-    var dataStore: RootStore<List<T>> = storeOf(emptyList())
-    fun dataStore(value: RootStore<List<T>>) {
-        dataStore = value
+    /*
+    EventsContext(multiSelectionStore.toggle).apply {
+        events.value(this)
+        store?.let { selected handledBy it.update }
     }
-
-    // TODO: Muss weg!
-    var selectedRows: Flow<List<T>> = flowOf(emptyList())
-    fun selectedRows(value: Flow<List<T>>) {
-        selectedRows = value
-    }
+     */
 
     var captionPlacement: CaptionPlacement = CaptionPlacement.TOP
     fun captionPlacement(value: CaptionPlacement) {
@@ -392,6 +389,85 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
         caption = {
             box { value.asText() }
         }
+    }
+
+    /*
+        selection {
+            strategy { checkbox } // click
+            customStrategy(SomeImplementation) // pass some custom strategy instead
+            // handle by Store
+            row(Store<T>)
+            rows(Store<List<T>>)
+            // preselect by Flow
+            selectedRow(Flow<T>)
+            selectedRows(Flow<List<T>>)
+        }
+
+        selection { single { row(someStore) } }
+        selection { single { selected(someFlow) } }
+        selection { multi { rows(someStore) } }
+        selection { multi { selected(someFlow) } }
+     */
+
+    enum class SelectionMode {
+        None,
+        Single,
+        Multi
+    }
+
+    class Selection<T> {
+
+        object StrategyContext {
+            enum class StrategySpecifier {
+                Checkbox,
+                Click
+            }
+
+            val checkbox = StrategySpecifier.Checkbox
+            val click = StrategySpecifier.Click
+        }
+
+        class Single<T> {
+            val row = ComponentProperty<Store<T?>?>(null)
+            val selected = NullableDynamicComponentProperty<T>(emptyFlow())
+        }
+
+        internal var single: Single<T>? = null
+        fun single(value: Single<T>.() -> Unit) {
+            single = Single<T>().apply(value)
+        }
+
+        class Multi<T> {
+            val rows = ComponentProperty<Store<List<T>>?>(null)
+            val selected = DynamicComponentProperty<List<T>>(emptyFlow())
+        }
+
+        internal var multi: Multi<T>? = null
+        fun multi(value: Multi<T>.() -> Unit) {
+            multi = Multi<T>().apply(value)
+        }
+
+        val strategy = ComponentProperty<StrategyContext.() -> StrategyContext.StrategySpecifier> { click }
+        //val customStrategy = ComponentProperty<SelectionStrategy?>(null)
+
+        internal val selectionMode by lazy {
+            when {
+                single != null -> {
+                    SelectionMode.Single
+                }
+                multi != null -> {
+                    SelectionMode.Multi
+                }
+                else -> {
+                    SelectionMode.None
+                }
+            }
+        }
+    }
+
+    private var selection = Selection<T>()
+    fun selection(value: Selection<T>.() -> Unit) {
+        selection = Selection<T>().apply { value() }
     }
 
     class Options<T> {
@@ -625,7 +701,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                     component.options.sorting.sorter.value.sortedBy(data, state.columnSortingPlan(component.columns))
                 }.renderEach(rowIdProvider) { t ->
                     val rowStore = component.dataStore.sub(t, rowIdProvider)
-                    val selected = component.selectedRows.map { selectedRows ->
+                    val selected = component.selectionStore.data.map { selectedRows ->
                         selectedRows.contains(rowStore.current)
                     }
 
@@ -635,7 +711,8 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                     }){
                         className(component.selectedRowStyleClass.whenever(selected).name)
 
-                        if (component.selectionMode == Companion.SelectionMode.SINGLE) {
+                        // TODO: Change to selection.strategy as comparison instead!
+                        if (selection.selectionMode == SelectionMode.Single) {
                             clicks.events.map {
                                 rowStore.current
                             } handledBy component.selectionStore.selectRow
@@ -673,10 +750,11 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
         prefix: String
     ) {
 
+
         // TODO: Put into its own Interface; should wait until events context is finished
         prependAdditionalColumns {
-            when (selectionMode) {
-                Companion.SelectionMode.MULTI -> {
+            when (selection.selectionMode) {
+                SelectionMode.Multi -> {
                     column {
                         width {
                             min { "60px" }
@@ -686,7 +764,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                             content {
                                 checkbox({ display { inlineBlock } }, id = uniqueId()) {
                                     checked(
-                                        selectedRows.map {
+                                        selectionStore.data.map {
                                             it.isNotEmpty() && it == dataStore.current
                                         }
                                     )
@@ -729,7 +807,7 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
                         sorting { disabled }
                     }
                 }
-                Companion.SelectionMode.SINGLE_CHECKBOX -> {
+                SelectionMode.Single -> {
                     column {
                         width {
                             min { "60px" }
@@ -774,6 +852,16 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
         )
 
         context.apply {
+            // preset selection via external store or flow
+            when (selection.selectionMode) {
+                SelectionMode.Single ->
+                    (selection.single?.row?.value?.data
+                        ?: selection.single?.selected!!.values) handledBy selectionStore.selectRow
+                SelectionMode.Multi -> (selection.multi?.rows?.value?.data
+                    ?: selection.multi?.selected!!.values) handledBy selectionStore.update
+                else -> Unit
+            }
+
             if (captionPlacement == Companion.CaptionPlacement.TOP) {
                 caption?.invoke(this)
             }
@@ -797,19 +885,31 @@ class TableComponent<T, I>(private val rowIdProvider: (T) -> I) : Component<Unit
             if (captionPlacement == Companion.CaptionPlacement.BOTTOM) {
                 caption?.invoke(this)
             }
+
+            // tie selection to external store if needed
+            when (selection.selectionMode) {
+                SelectionMode.Single -> events {
+                    selection.single!!.row.value?.let { selectedRow handledBy it.update }
+                }
+                SelectionMode.Multi -> events {
+                    selection.multi!!.rows.value?.let { selectedRows handledBy it.update }
+                }
+                else -> Unit
+            }
         }
     }
 }
 
 fun <T, I> RenderContext.dataTable(
     styling: GridParams.() -> Unit = {},
+    dataStore: RootStore<List<T>>,
     rowIdProvider: (T) -> I,
     baseClass: StyleClass? = null,
     id: String? = null,
     prefix: String = TableComponent.prefix,
     build: TableComponent<T, I>.() -> Unit = {}
 ) {
-    TableComponent(rowIdProvider).apply(build).render(this, styling, baseClass, id, prefix)
+    TableComponent(dataStore, rowIdProvider).apply(build).render(this, styling, baseClass, id, prefix)
 }
 
 
