@@ -1,43 +1,19 @@
 package dev.fritz2.components
 
 import dev.fritz2.binding.RootStore
-import dev.fritz2.binding.Store
-import dev.fritz2.dom.DomListener
 import dev.fritz2.dom.Window
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.identification.uniqueId
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
-import dev.fritz2.styling.style
 import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
+import dev.fritz2.styling.theme.Theme
 import kotlinx.browser.document
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import org.w3c.dom.HTMLDivElement
-import org.w3c.dom.events.MouseEvent
-
-
-private val staticMenuEntryCss = staticStyle("menu-item") {
-    width { "100%" }
-    paddings {
-        horizontal { small }
-        vertical { smaller }
-    }
-    radius { "6px" }
-}
-
-private val staticMenuDividerCss = staticStyle("menu-divider") {
-    width { "100%" }
-    height { "1px" }
-    margins { vertical { smaller } }
-    background { color { gray300 } }
-}
-
-private val menuOptionStyle: Style<BasicParams> = {
-    margins { vertical { smaller } }
-}
 
 
 // TODO: Move styles into theme
@@ -54,7 +30,7 @@ interface MenuPlacements {
 
 interface MenuPlacement {
     val containerLayout: Style<FlexParams>
-    val dropdownStyle: Style<BasicParams>
+    val dropdownStyle: Style<BoxParams>
 }
 
 val menuStyles = object : MenuStyles {
@@ -85,6 +61,16 @@ val menuStyles = object : MenuStyles {
             }
         }
     }
+}
+
+
+private val staticMenuEntryCss = staticStyle("menu-item") {
+    width { "100%" }
+    paddings {
+        horizontal { small }
+        vertical { smaller }
+    }
+    radius { "6px" }
 }
 
 
@@ -124,7 +110,7 @@ open class MenuComponent : Component<Unit> {
     }
 
     val toggle = ComponentProperty<RenderContext.() -> Unit> { }
-    val items = ComponentProperty<(RenderContext.() -> Unit)?>(value = null)
+    val items = ComponentProperty<(MenuEntriesContext.() -> Unit)?>(value = null)
     val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
 
     override fun render(
@@ -134,7 +120,6 @@ open class MenuComponent : Component<Unit> {
         id: String?,
         prefix: String
     ) {
-        val uniqueId = "menu-dropdown-${uniqueId()}"
         val placement = placement.value.invoke(menuStyles.placements)
 
         context.apply {
@@ -148,16 +133,7 @@ open class MenuComponent : Component<Unit> {
                 box(baseClass = staticDropdownContainerCss) {
                     visibilityStore.data.render { visible ->
                         if (visible) {
-                            box(
-                                // TODO: Fix styling
-                                styling = /*styling + */placement.dropdownStyle,
-                                baseClass = baseClass + staticDropdownCss,
-                                id = uniqueId,
-                                prefix = prefix
-                            ) {
-                                items.value?.invoke(this)
-                            }
-                            listenToWindowEvents(uniqueId)
+                            renderDropdown(styling, placement, baseClass, id, prefix)
                         } else {
                             box { /* just an empty placeholder */ }
                         }
@@ -167,8 +143,37 @@ open class MenuComponent : Component<Unit> {
         }
     }
 
+    private fun RenderContext.renderDropdown(
+        styling: BoxParams.() -> Unit,
+        placement: MenuPlacement,
+        baseClass: StyleClass,
+        id: String?,
+        prefix: String
+    ) {
+        val uniqueDropdownId = id ?: "menu-dropdown-${uniqueId()}"
+
+        box(
+            styling = { this as BoxParams
+                styling()
+                placement.dropdownStyle()
+            },
+            baseClass = baseClass + staticDropdownCss,
+            id = uniqueDropdownId,
+            prefix = prefix
+        ) {
+            items.value?.let {
+                val entriesContext = MenuEntriesContext().apply(it)
+                entriesContext.entries.forEach { entry ->
+                    entry.render(context = this, styling = {}, StyleClass.None, id = null, prefix)
+                }
+            }
+        }
+        listenToWindowEvents(uniqueDropdownId)
+    }
+
     private fun RenderContext.listenToWindowEvents(dropdownId: String) {
         Window.clicks.events
+            .drop(1) // filter first event so the dropdown does not get closed imediately
             .filter { event ->
                 val dropdownElement = document.getElementById(dropdownId)
                 dropdownElement?.let {
@@ -196,12 +201,79 @@ fun RenderContext.menu(
     .render(this, styling, baseClass, id, prefix)
 
 
-@ComponentMarker
-open class MenuItemComponent : Component<Unit>, EventProperties<HTMLDivElement> by EventMixin() {
+interface MenuEntry : Component<Unit>
+
+class MenuEntriesContext {
+
+    private interface MenuEntryContext {
+        fun build(): MenuEntry
+    }
+
+    class MenuItemContext : MenuEntryContext {
+        val leftIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
+        val text = ComponentProperty("")
+        val rightIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
+
+        override fun build() = MenuItem(
+            leftIcon.value?.invoke((Theme().icons)),
+            text.value,
+            rightIcon.value?.invoke(Theme().icons)
+        )
+    }
+
+    class MenuSubheaderContext : MenuEntryContext {
+        val text = ComponentProperty<String>("")
+
+        override fun build(): MenuEntry = MenuSubheader(
+            text.value
+        )
+    }
+
+    class MenuDividerContext : MenuEntryContext {
+        override fun build(): MenuEntry = MenuDivider()
+    }
+
+
+    private val _entries = mutableListOf<MenuEntry>()
+    val entries: List<MenuEntry>
+        get() = _entries.toList()
+
+
+    fun item(expression: MenuItemContext.() -> Unit) = MenuItemContext()
+        .apply(expression)
+        .build()
+        .also { _entries += it }
+
+    fun subheader(expression: MenuSubheaderContext.() -> Unit) = MenuSubheaderContext()
+        .apply(expression)
+        .build()
+        .also { _entries += it }
+
+    fun subheader(text: String) = subheader { text(text) }
+
+    fun divider(expression: MenuDividerContext.() -> Unit = { }) = MenuDividerContext()
+        .apply(expression)
+        .build()
+        .also { _entries += it }
+}
+
+
+data class MenuItem(
+    val leftIcon: IconDefinition?,
+    val text: String,
+    val rightIcon: IconDefinition?
+) : MenuEntry {
 
     companion object {
-        private val menuItemStyle: Style<FlexParams> = {
+        private val staticMenuItemCss = staticStyle("menu-item") {
+            width { "100%" }
+            paddings {
+                horizontal { small }
+                vertical { smaller }
+            }
             alignItems { center }
+
+            radius { "6px" }
             hover {
                 background { color { gray300 } }
                 css("filter: brightness(90%);")
@@ -209,10 +281,6 @@ open class MenuItemComponent : Component<Unit>, EventProperties<HTMLDivElement> 
         }
     }
 
-    val label = ComponentProperty<String?>(value = null)
-    val leftIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
-    val rightIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
-
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
@@ -220,59 +288,61 @@ open class MenuItemComponent : Component<Unit>, EventProperties<HTMLDivElement> 
         id: String?,
         prefix: String
     ) {
+        // TODO: Expose click-listener
         context.apply {
             flexBox(
-                // TODO: Fix styling
-                styling = /*styling + */menuItemStyle,
-                baseClass = baseClass + staticMenuEntryCss,
+                styling = { this as BoxParams
+                    styling()
+                },
+                baseClass = baseClass + staticMenuEntryCss + staticMenuItemCss,
                 id = id,
                 prefix = prefix,
             ) {
-                leftIcon.value?.let {
-                    icon { fromTheme(it) }
+                leftIcon?.let {
+                    icon { def(it) }
                 }
-                label.value?.let {
-                    (::label.styled {
-                        width { "100%" }
-                        margins { horizontal { tiny } }
-                        css("white-space: nowrap")
-                    }) { +it }
+
+                (::label.styled {
+                    width { "100%" }
+                    margins { horizontal { tiny } }
+                    css("white-space: nowrap")
+                }) { +text }
+
+                rightIcon?.let {
+                    icon { def(it) }
                 }
-                rightIcon.value?.let {
-                    icon { fromTheme(it) }
-                }
-                events.value.invoke(this)
+                //events.value.invoke(this)
             }
         }
     }
 }
 
-fun RenderContext.menuItem(
-    styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass = StyleClass.None,
-    id: String? = null,
-    prefix: String = "menu-item",
-    build: MenuItemComponent.() -> Unit,
-): DomListener<MouseEvent, HTMLDivElement> {
-
-    var clickListener: DomListener<MouseEvent, HTMLDivElement>? = null
-    val component = MenuItemComponent()
-        .apply(build)
-        .apply {
-            events {
-                clickListener = clicks
-            }
+data class MenuSubheader(
+    val text: String
+) : MenuEntry {
+    override fun render(
+        context: RenderContext,
+        styling: BoxParams.() -> Unit,
+        baseClass: StyleClass,
+        id: String?,
+        prefix: String
+    ) {
+        context.apply {
+            h5(baseClass = staticMenuEntryCss.name) { +text }
         }
-
-    component.render(this, styling, baseClass, id, prefix)
-    return clickListener!!
+    }
 }
 
+class MenuDivider : MenuEntry {
 
-@ComponentMarker
-open class MenuGroupComponent : Component<Unit> {
-    val title = ComponentProperty<String?>(value = null)
-    val items = ComponentProperty<(RenderContext.() -> Unit)?>(value = null)
+    companion object {
+        private val staticMenuDividerCss = staticStyle("menu-divider") {
+            width { "100%" }
+            height { "1px" }
+            margins { vertical { smaller } }
+            background { color { gray300 } }
+        }
+    }
 
     override fun render(
         context: RenderContext,
@@ -282,86 +352,7 @@ open class MenuGroupComponent : Component<Unit> {
         prefix: String
     ) {
         context.apply {
-            stackUp(
-                // TODO: Fix styling
-                //styling = styling,
-                baseClass = baseClass,
-                id = id,
-                prefix = prefix
-            ) {
-                spacing { none }
-                items {
-                    this@MenuGroupComponent.title.value?.let {
-                        h5(baseClass = staticMenuEntryCss.name) { +it }
-                    }
-                    this@MenuGroupComponent.items.value?.invoke(this)
-                }
-            }
+            box(baseClass = staticMenuDividerCss) { }
         }
     }
 }
-
-fun RenderContext.menuGroup(
-    styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass = StyleClass.None,
-    id: String? = null,
-    prefix: String = "menu-item-group",
-    build: MenuGroupComponent.() -> Unit,
-) = MenuGroupComponent()
-    .apply(build)
-    .render(this, styling, baseClass, id, prefix)
-
-fun RenderContext.checkboxMenuGroup(
-    styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass = StyleClass.None,
-    id: String? = null,
-    prefix: String = "menu-checkbox-group",
-    title: String,
-    options: List<String>,
-    store: Store<List<String>>? = null,
-) {
-    menuGroup(styling, baseClass, id, prefix) {
-        title(title)
-        items {
-            checkboxGroup(
-                baseClass = staticMenuEntryCss,
-                styling = {
-                    paddings { top { none } }
-                },
-                items = options,
-                store = store
-            ) {
-                itemStyle(menuOptionStyle)
-            }
-        }
-    }
-}
-
-fun RenderContext.radioMenuGroup(
-    styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass = StyleClass.None,
-    id: String? = null,
-    prefix: String = "menu-radio-group",
-    title: String,
-    options: List<String>,
-    store: Store<String>? = null,
-) {
-    menuGroup(styling, baseClass, id, prefix) {
-        title(title)
-        items {
-            radioGroup(
-                baseClass = staticMenuEntryCss,
-                styling = {
-                    paddings { top { none } }
-                },
-                items = options,
-                store = store
-            ) {
-                itemStyle(menuOptionStyle)
-            }
-        }
-    }
-}
-
-
-fun RenderContext.menuDivider() = box(baseClass = staticMenuDividerCss) { }

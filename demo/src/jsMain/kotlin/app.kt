@@ -82,38 +82,40 @@ fun main() {
                 }
                 placement { bottom }
                 items {
-                    menuItem {
+                    item {
                         leftIcon { ban }
-                        label("This is a simple menu-item.")
+                        text("This is a simple menu-item.")
                     }
-                    menuDivider()
-                    menuGroup {
-                        title("Menu-Group")
-                        items {
-                            menuItem {
-                                leftIcon { link }
-                                label("Menu-item in a group.")
-                            }
-                            menuItem {
-                                leftIcon { camera }
-                                label("Menu-item in a group 2.")
-                            }
-                        }
+                    divider()
+                    subheader {
+                        text("This is a sub-header")
                     }
-                    menuDivider()
+                    item {
+                        leftIcon { link }
+                        text("Menu-item in a group.")
+                    }
+                    item {
+                        leftIcon { camera }
+                        text("Menu-item in a group 2.")
+                    }
+                    /*divider()
                     checkboxMenuGroup(
                         title = "Checkboxes",
                         options = listOf("Option 1", "Option 2", "Option 3")
                     )
-                    menuDivider()
+                    divider()
                     radioMenuGroup(
                         title = "Radios",
                         options = listOf("Option 1", "Option 2", "Option 3")
-                    )
+                    )*/
                 }
             }
         }
 
         tableDemo()
     }
+}
+
+fun title(s: String) {
+
 }
