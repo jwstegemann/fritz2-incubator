@@ -75,11 +75,11 @@ fun main() {
         h1 { +"fritz incubator - Demo" }
         div {
             menu {
-                toggle {
+                /*toggle {
                     pushButton {
                         text("Test")
                     }
-                }
+                }*/
                 placement { bottom }
                 items {
                     item {

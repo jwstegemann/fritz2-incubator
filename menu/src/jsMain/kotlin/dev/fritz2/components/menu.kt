@@ -109,7 +109,12 @@ open class MenuComponent : Component<Unit> {
         val dismiss = handle<Unit> { _, _ -> false }
     }
 
-    val toggle = ComponentProperty<RenderContext.() -> Unit> { }
+    val toggle = ComponentProperty<RenderContext.() -> Unit> {
+        pushButton {
+            icon { fromTheme { menu } }
+            variant { outline }
+        }
+    }
     val items = ComponentProperty<(MenuEntriesContext.() -> Unit)?>(value = null)
     val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
 
