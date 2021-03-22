@@ -1,11 +1,11 @@
 import dev.fritz2.binding.RootStore
+import dev.fritz2.binding.SubStore
 import dev.fritz2.binding.storeOf
 import dev.fritz2.components.*
-import dev.fritz2.components.datatable.SingleArrowSortingRenderer
-import dev.fritz2.components.datatable.Sorting
-import dev.fritz2.components.datatable.SortingRenderer
+import dev.fritz2.components.datatable.*
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
+import dev.fritz2.dom.html.Tr
 import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.buildLens
@@ -1316,14 +1316,6 @@ fun RenderContext.tableDemo() {
                         "Table with \"${mode.name}\" Selection Mode "
                     })
 
-
-                    /*
-                    // Idee, wie man Modus von Darstellung/Mechanismus trennen kann
-                    // mode bestimmt strategy im default hierarchisch:
-                    // mode: default: single -> strategy: click
-                    // mode: none -> strategy: none
-                    // -> Damit muss man kaum etwas spezifizieren!
-                     */
                     selection {
                         when (selectionMode) {
                             TableComponent.SelectionMode.Single -> {
@@ -1338,10 +1330,34 @@ fun RenderContext.tableDemo() {
                                     //selected(multiSelectionStore.data)
                                 }
                             }
+                            else -> Unit
                         }
                         // ohne -> weder single noch multi setzen!
-                        //strategy { checkbox } // click
-                        //customStrategy(SomeImplementation) // pass some custom strategy
+
+                        // Ohne Strategy -> default wird je nach Mode gesetzt!
+                        // (Ohne Mode wird immer NoSelection gewählt)
+                        //strategy { checkbox }
+                        strategy { click }
+                        /*
+                        // Custom strategy: Use both variants
+                        strategy(object : SelectionStrategy<Person, Int> {
+                            private val checkBoxStrategy = SelectionByCheckBox<Person, Int>()
+                            private val clickStrategy = SelectionByClick<Person, Int>()
+
+                            override fun addExtraColumn(component: TableComponent<Person, Int>) {
+                                checkBoxStrategy.addExtraColumn(component)
+                            }
+
+                            override fun manageSelectionByRowEvents(
+                                component: TableComponent<Person, Int>,
+                                rowStore: SubStore<List<Person>, List<Person>, Person>,
+                                tr: Tr
+                            ) {
+                                clickStrategy.manageSelectionByRowEvents(component, rowStore, tr)
+                            }
+                        })
+
+                         */
                     }
 
                     events {
