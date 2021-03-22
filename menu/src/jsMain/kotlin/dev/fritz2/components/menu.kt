@@ -11,9 +11,11 @@ import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
 import dev.fritz2.styling.theme.Theme
 import kotlinx.browser.document
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import org.w3c.dom.events.MouseEvent
 
 
 // TODO: Move styles into theme
@@ -246,10 +248,14 @@ class MenuEntriesContext {
         get() = _entries.toList()
 
 
-    fun item(expression: ItemContext.() -> Unit) = ItemContext()
-        .apply(expression)
-        .build()
-        .also { _entries += it }
+    fun item(expression: ItemContext.() -> Unit): Flow<MouseEvent> {
+        val item = ItemContext()
+            .apply(expression)
+            .build()
+            .also { _entries += it }
+
+        return item.clicks
+    }
 
     fun custom(content: RenderContext.() -> Unit) = CustomContentContext()
         .apply { content(content) }
@@ -293,6 +299,15 @@ data class MenuItem(
         }
     }
 
+
+    private val clickStore = object : RootStore<Unit>(Unit) {
+        val forwardMouseEvents = handleAndEmit<MouseEvent, MouseEvent> { _, e -> emit(e) }
+    }
+
+    val clicks: Flow<MouseEvent>
+        get() = clickStore.forwardMouseEvents
+
+
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
@@ -300,7 +315,6 @@ data class MenuItem(
         id: String?,
         prefix: String
     ) {
-        // TODO: Expose click-listener
         context.apply {
             flexBox(
                 styling = { this as BoxParams
@@ -323,8 +337,7 @@ data class MenuItem(
                 rightIcon?.let {
                     icon { def(it) }
                 }
-                //events.value.invoke(this)
-            }
+            }.clicks.events handledBy clickStore.forwardMouseEvents
         }
     }
 }
