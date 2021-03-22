@@ -9,6 +9,7 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
+import dev.fritz2.styling.style
 import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
 import kotlinx.browser.document
@@ -31,7 +32,7 @@ private val staticMenuDividerCss = staticStyle("menu-divider") {
     width { "100%" }
     height { "1px" }
     margins { vertical { smaller } }
-    background { color { lighterGray } }
+    background { color { gray300 } }
 }
 
 private val menuOptionStyle: Style<BasicParams> = {
@@ -104,7 +105,7 @@ open class MenuComponent : Component<Unit> {
             minWidth { minContent }
             zIndex { "100" }
 
-            background { color { base } }
+            background { color { neutral } }
             radius { "6px" }
             paddings { vertical { smaller } }
 
@@ -129,7 +130,7 @@ open class MenuComponent : Component<Unit> {
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String
     ) {
@@ -150,7 +151,7 @@ open class MenuComponent : Component<Unit> {
                             box(
                                 // TODO: Fix styling
                                 styling = /*styling + */placement.dropdownStyle,
-                                baseClass = baseClass?.let { it + staticDropdownCss } ?: staticDropdownCss,
+                                baseClass = baseClass + staticDropdownCss,
                                 id = uniqueId,
                                 prefix = prefix
                             ) {
@@ -186,7 +187,7 @@ open class MenuComponent : Component<Unit> {
 
 fun RenderContext.menu(
     styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass? = null,
+    baseClass: StyleClass = StyleClass.None,
     id: String = "menu-dropdown-${uniqueId()}",
     prefix: String = "menu-dropdown",
     build: MenuComponent.() -> Unit,
@@ -202,7 +203,7 @@ open class MenuItemComponent : Component<Unit>, EventProperties<HTMLDivElement> 
         private val menuItemStyle: Style<FlexParams> = {
             alignItems { center }
             hover {
-                background { color { lightestGray } }
+                background { color { gray300 } }
                 css("filter: brightness(90%);")
             }
         }
@@ -215,7 +216,7 @@ open class MenuItemComponent : Component<Unit>, EventProperties<HTMLDivElement> 
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String
     ) {
@@ -223,7 +224,7 @@ open class MenuItemComponent : Component<Unit>, EventProperties<HTMLDivElement> 
             flexBox(
                 // TODO: Fix styling
                 styling = /*styling + */menuItemStyle,
-                baseClass = baseClass?.let { it + staticMenuEntryCss } ?: staticMenuEntryCss,
+                baseClass = baseClass + staticMenuEntryCss,
                 id = id,
                 prefix = prefix,
             ) {
@@ -248,7 +249,7 @@ open class MenuItemComponent : Component<Unit>, EventProperties<HTMLDivElement> 
 
 fun RenderContext.menuItem(
     styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass? = null,
+    baseClass: StyleClass = StyleClass.None,
     id: String? = null,
     prefix: String = "menu-item",
     build: MenuItemComponent.() -> Unit,
@@ -276,7 +277,7 @@ open class MenuGroupComponent : Component<Unit> {
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String
     ) {
@@ -302,7 +303,7 @@ open class MenuGroupComponent : Component<Unit> {
 
 fun RenderContext.menuGroup(
     styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass? = null,
+    baseClass: StyleClass = StyleClass.None,
     id: String? = null,
     prefix: String = "menu-item-group",
     build: MenuGroupComponent.() -> Unit,
@@ -312,7 +313,7 @@ fun RenderContext.menuGroup(
 
 fun RenderContext.checkboxMenuGroup(
     styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass? = null,
+    baseClass: StyleClass = StyleClass.None,
     id: String? = null,
     prefix: String = "menu-checkbox-group",
     title: String,
@@ -338,7 +339,7 @@ fun RenderContext.checkboxMenuGroup(
 
 fun RenderContext.radioMenuGroup(
     styling: BasicParams.() -> Unit = {},
-    baseClass: StyleClass? = null,
+    baseClass: StyleClass = StyleClass.None,
     id: String? = null,
     prefix: String = "menu-radio-group",
     title: String,
