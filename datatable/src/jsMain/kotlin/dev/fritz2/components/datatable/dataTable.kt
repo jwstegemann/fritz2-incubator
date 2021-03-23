@@ -438,7 +438,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         }
 
         val defaultTbody: Style<BasicParams> = {
-
         }
 
         val defaultTr: Style<BasicParams> = {
@@ -731,7 +730,63 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         StateStore(options.value.sorting.value.reducer.value)
     }
 
-    fun <I> renderTable(
+    override fun render(
+        context: RenderContext,
+        styling: BoxParams.() -> Unit,
+        baseClass: StyleClass,
+        id: String?,
+        prefix: String
+    ) {
+        selection.value.strategy.value?.manageSelectionByExtraColumn(this)
+
+        stateStore.update(
+            State(
+                columns.value.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
+                emptyList()
+            )
+        )
+
+        context.apply {
+            // preset selection via external store or flow
+            when (selection.value.selectionMode) {
+                SelectionMode.Single ->
+                    (selection.value.single?.row?.value?.data
+                        ?: selection.value.single?.selected!!.values) handledBy selectionStore.selectRow
+                SelectionMode.Multi -> (selection.value.multi?.rows?.value?.data
+                    ?: selection.value.multi?.selected!!.values) handledBy selectionStore.update
+                else -> Unit
+            }
+
+            (::div.styled {
+                options.value.width.value?.also { width { it } }
+                options.value.height.value?.also { height { it } }
+                options.value.maxHeight.value?.also { maxHeight { it } }
+                options.value.maxWidth.value?.also { maxWidth { it } }
+
+                if (options.value.height.value != null || options.value.width.value != null) {
+                    overflow { OverflowValues.auto }
+                }
+
+                css("overscroll-behavior: contain")
+                position { relative { } }
+            }) {
+                renderTable(styling, baseClass, id, prefix, rowIdProvider, this)
+            }
+
+            // tie selection to external store if needed
+            when (selection.value.selectionMode) {
+                SelectionMode.Single -> events {
+                    selection.value.single!!.row.value?.let { selectedRow handledBy it.update }
+                }
+                SelectionMode.Multi -> events {
+                    selection.value.multi!!.rows.value?.let { selectedRows handledBy it.update }
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    private fun <I> renderTable(
         styling: BoxParams.() -> Unit,
         baseClass: StyleClass?,
         id: String?,
@@ -779,21 +834,21 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         if (component.options.value.fixedHeader.value) {
             renderFixedHeaderTable(
                 styling,
+                rowIdProvider,
+                gridCols,
                 tableBaseClass,
                 id,
                 prefix,
-                rowIdProvider,
-                gridCols,
                 RenderContext
             )
         } else {
             renderSimpleTable(
                 styling,
+                rowIdProvider,
+                gridCols,
                 tableBaseClass,
                 id,
                 prefix,
-                rowIdProvider,
-                gridCols,
                 RenderContext
             )
         }
@@ -801,11 +856,11 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
     private fun <I> renderFixedHeaderTable(
         styling: BoxParams.() -> Unit,
+        rowIdProvider: (T) -> I,
+        gridCols: Flow<String>,
         baseClass: StyleClass,
         id: String?,
         prefix: String,
-        rowIdProvider: (T) -> I,
-        gridCols: Flow<String>,
         RenderContext: RenderContext
     ) {
         val component = this
@@ -832,7 +887,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 margins {
                     top { "-${component.options.value.fixedHeaderHeight.value}" }
                 }
-
                 height { "fit-content" }
             }, baseClass, id, prefix) {}){
                 attr("style", gridCols)
@@ -840,21 +894,19 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                     css("visibility:hidden")
                 }, this)
                 renderTBody({}, rowIdProvider, this)
-
             }
         }
     }
 
     private fun <I> renderSimpleTable(
         styling: BoxParams.() -> Unit,
+        rowIdProvider: (T) -> I,
+        gridCols: Flow<String>,
         baseClass: StyleClass,
         id: String?,
         prefix: String,
-        rowIdProvider: (T) -> I,
-        gridCols: Flow<String>,
         RenderContext: RenderContext
     ) {
-
         RenderContext.apply {
             (::table.styled({
                 styling()
@@ -871,7 +923,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         renderContext: RenderContext
     ) {
         val component = this
-
         renderContext.apply {
             (::thead.styled() {
                 component.defaultTHeadStyle.value()
@@ -902,7 +953,9 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                                         } else if (column.sorting != Sorting.DISABLED) {
                                             component.options.value.sorting.value.renderer.value.renderSortingLost(this)
                                         } else {
-                                            component.options.value.sorting.value.renderer.value.renderSortingDisabled(this)
+                                            component.options.value.sorting.value.renderer.value.renderSortingDisabled(
+                                                this
+                                            )
                                         }
                                         clicks.events.map {
                                             ColumnIdSorting.of(column)
@@ -952,73 +1005,15 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                                     defaultTd()
                                     component.defaultTdStyle.value()
                                 }) {
-                                    if (column.lens != null) {
-                                        val b = rowStore.sub(column.lens)
-                                        column.content(this, b, rowStore)
-                                    } else {
-                                        column.content(this, null, rowStore)
-                                    }
+                                    column.content(
+                                        this,
+                                        if (column.lens != null) rowStore.sub(column.lens) else null,
+                                        rowStore
+                                    )
                                 }
                             }
                     }
                 }
-            }
-        }
-    }
-
-    override fun render(
-        context: RenderContext,
-        styling: BoxParams.() -> Unit,
-        baseClass: StyleClass,
-        id: String?,
-        prefix: String
-    ) {
-
-        selection.value.strategy.value?.manageSelectionByExtraColumn(this)
-
-        stateStore.update(
-            State(
-                columns.value.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
-                emptyList()
-            )
-        )
-
-        context.apply {
-            // preset selection via external store or flow
-            when (selection.value.selectionMode) {
-                SelectionMode.Single ->
-                    (selection.value.single?.row?.value?.data
-                        ?: selection.value.single?.selected!!.values) handledBy selectionStore.selectRow
-                SelectionMode.Multi -> (selection.value.multi?.rows?.value?.data
-                    ?: selection.value.multi?.selected!!.values) handledBy selectionStore.update
-                else -> Unit
-            }
-
-            (::div.styled {
-                options.value.width.value?.also { width { it } }
-                options.value.height.value?.also { height { it } }
-                options.value.maxHeight.value?.also { maxHeight { it } }
-                options.value.maxWidth.value?.also { maxWidth { it } }
-
-                if (options.value.height.value != null || options.value.width.value != null) {
-                    overflow { OverflowValues.auto }
-                }
-
-                css("overscroll-behavior: contain")
-                position { relative { } }
-            }) {
-                renderTable(styling, baseClass, id, prefix, rowIdProvider, this)
-            }
-
-            // tie selection to external store if needed
-            when (selection.value.selectionMode) {
-                SelectionMode.Single -> events {
-                    selection.value.single!!.row.value?.let { selectedRow handledBy it.update }
-                }
-                SelectionMode.Multi -> events {
-                    selection.value.multi!!.rows.value?.let { selectedRows handledBy it.update }
-                }
-                else -> Unit
             }
         }
     }

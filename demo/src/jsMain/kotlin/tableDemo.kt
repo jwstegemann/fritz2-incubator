@@ -1275,17 +1275,34 @@ fun RenderContext.tableDemo() {
             }
         }
         main {
+            lineUp {
+                items {
+
+                /*
             selectionModeStore.data.render {
                 when (it) {
                     SelectionMode.Single -> {
+
+                 */
+                    stackUp {
+                        items {
+
                         h2 { +"Single Selection" }
                         singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
                             .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
                         ul {
-                            li { singleSelectionStore.data.asText() }
+                            li { singleSelectionStore.data.map { it?.fullName }.asText() }
+                        }
                         }
                     }
+                /*
+                    }
                     SelectionMode.Multi -> {
+
+                 */
+                    stackUp {
+                        items {
+
                         h2 { +"Multi Selection" }
                         multiSelectionStore.data.render { list ->
                             paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
@@ -1293,12 +1310,20 @@ fun RenderContext.tableDemo() {
 
                         ul {
                             multiSelectionStore.data.renderEach {
-                                li { +it.toString() }
+                                li { +it.fullName }
                             }
                         }
+                        }
+                    }
+                /*
                     }
                     else -> {
                     }
+                }
+
+            }
+                 */
+
                 }
             }
 
@@ -1369,6 +1394,7 @@ fun RenderContext.tableDemo() {
                     }
 
                     options {
+                        //fixedHeader(false)
                         height("auto")
                         maxHeight("70vh")
                         sorting {
