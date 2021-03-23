@@ -87,7 +87,12 @@ class MyCustomEntriesContext : MenuEntriesContext() {
                 prefix: String
             ) {
                 context.apply {
-                    radioGroup(items = items.value)
+                    radioGroup(items = items.value, styling = {
+                        margins {
+                            horizontal { small }
+                            vertical { smaller }
+                        }
+                    })
                 }
             }
         }
@@ -123,7 +128,7 @@ fun main() {
                     } handledBy clickCounterStore.increment
 
                     divider()
-                    subheader("Here are some more, unrelated items:")
+                    subheader("Some more items:")
                     item {
                         leftIcon { circleInformation }
                         text("Info")
@@ -143,7 +148,7 @@ fun main() {
                         spinner { }
                     }
                     divider()
-                    subheader("Items from a custom MenuEntryContext")
+                    subheader("Custom MenuEntryContext")
                     radios {
                         items(listOf("Item 1", "Item 2", "Item 3"))
                     }

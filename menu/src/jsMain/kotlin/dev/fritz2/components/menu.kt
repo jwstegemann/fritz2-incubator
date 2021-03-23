@@ -12,7 +12,6 @@ import dev.fritz2.styling.theme.Icons
 import dev.fritz2.styling.theme.Theme
 import kotlinx.browser.document
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import org.w3c.dom.events.MouseEvent
@@ -265,7 +264,6 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
 
     private fun RenderContext.listenToWindowEvents(dropdownId: String) {
         Window.clicks.events
-            .drop(1) // filter first event so the dropdown does not get closed imediately
             .filter { event ->
                 val dropdownElement = document.getElementById(dropdownId)
                 dropdownElement?.let {
@@ -502,7 +500,9 @@ data class MenuSubheader(
         prefix: String
     ) {
         context.apply {
-            h5(baseClass = staticMenuEntryCss.name) { +text }
+            (::h5.styled(baseClass = staticMenuEntryCss) {
+                css("white-space: nowrap")
+            }) { +text }
         }
     }
 }
