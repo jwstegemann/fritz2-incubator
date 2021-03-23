@@ -268,7 +268,7 @@ class RowSelectionStore<T> : MultiSelectionStore<T>() {
 
 
 interface SelectionStrategy<T, I> {
-    fun addExtraColumn(component: TableComponent<T, I>)
+    fun manageSelectionByExtraColumn(component: TableComponent<T, I>)
     fun manageSelectionByRowEvents(
         component: TableComponent<T, I>, rowStore: SubStore<List<T>, List<T>, T>,
         renderContext: Tr
@@ -276,7 +276,7 @@ interface SelectionStrategy<T, I> {
 }
 
 class NoSelection<T, I> : SelectionStrategy<T, I> {
-    override fun addExtraColumn(component: TableComponent<T, I>) {
+    override fun manageSelectionByExtraColumn(component: TableComponent<T, I>) {
         // no extra column needed -> nothing should get selected!
     }
 
@@ -290,7 +290,7 @@ class NoSelection<T, I> : SelectionStrategy<T, I> {
 }
 
 class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
-    override fun addExtraColumn(component: TableComponent<T, I>) {
+    override fun manageSelectionByExtraColumn(component: TableComponent<T, I>) {
         with(component) {
             prependAdditionalColumns {
                 when (selection.value.selectionMode) {
@@ -322,26 +322,24 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
                                     }
                                 }
                             }
-                            content { ctx, _, rowStore ->
-                                ctx.apply {
-                                    checkbox(
-                                        { margin { "0" } },
-                                        id = uniqueId()
-                                    ) {
-                                        if (rowStore != null) {
-                                            checked(
-                                                selectionStore.data.map { selectedRows ->
-                                                    selectedRows.contains(rowStore.current)
-                                                }
-                                            )
-                                            events {
-                                                clicks.events.map {
-                                                    rowStore.current
-                                                } handledBy selectionStore.selectRows
+                            content { _, rowStore ->
+                                checkbox(
+                                    { margin { "0" } },
+                                    id = uniqueId()
+                                ) {
+                                    if (rowStore != null) {
+                                        checked(
+                                            selectionStore.data.map { selectedRows ->
+                                                selectedRows.contains(rowStore.current)
                                             }
+                                        )
+                                        events {
+                                            clicks.events.map {
+                                                rowStore.current
+                                            } handledBy selectionStore.selectRows
                                         }
-
                                     }
+
                                 }
                             }
                             sorting { disabled }
@@ -353,25 +351,23 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
                                 min { "60px" }
                                 max { "60px" }
                             }
-                            content { ctx, _, rowStore ->
-                                ctx.apply {
-                                    checkbox(
-                                        { margin { "0" } },
-                                        id = uniqueId()
-                                    ) {
-                                        if (rowStore != null) {
-                                            checked(
-                                                // TODO: Remove ols events handling!
-                                                selectionStore.data.map { selectedRows ->
-                                                    selectedRows.contains(rowStore.current)
-                                                }
-                                            )
-                                            events {
-
-                                                clicks.events.map {
-                                                    rowStore.current
-                                                } handledBy selectionStore.selectRow
+                            content { _, rowStore ->
+                                checkbox(
+                                    { margin { "0" } },
+                                    id = uniqueId()
+                                ) {
+                                    if (rowStore != null) {
+                                        checked(
+                                            // TODO: Remove ols events handling!
+                                            selectionStore.data.map { selectedRows ->
+                                                selectedRows.contains(rowStore.current)
                                             }
+                                        )
+                                        events {
+
+                                            clicks.events.map {
+                                                rowStore.current
+                                            } handledBy selectionStore.selectRow
                                         }
                                     }
                                 }
@@ -396,7 +392,7 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
 }
 
 class SelectionByClick<T, I> : SelectionStrategy<T, I> {
-    override fun addExtraColumn(component: TableComponent<T, I>) {
+    override fun manageSelectionByExtraColumn(component: TableComponent<T, I>) {
         // no extra column needed -> selection is handled by clicks!
     }
 
@@ -642,26 +638,12 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 styling = value
             }
 
-            private var content: (
-                renderContext: Td,
-                cellStore: Store<String>?,
-                rowStore: SubStore<List<T>, List<T>, T>?
-            ) -> Unit = { renderContext, store, _ ->
-                renderContext.apply {
-                    store?.data?.asText()
-                }
-            }
+            private var content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit =
+                { store, _ -> store?.data?.asText() }
 
-            fun content(
-                expression: (
-                    renderContext: Td,
-                    cellStore: Store<String>?,
-                    rowStore: SubStore<List<T>, List<T>, T>?
-                ) -> Unit
-            ) {
+            fun content(expression: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit) {
                 content = expression
             }
-
         }
 
         private var initialColumns: MutableMap<String, Column<T>> = mutableMapOf()
@@ -1113,7 +1095,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         prefix: String
     ) {
 
-        selection.value.strategy.value?.addExtraColumn(this)
+        selection.value.strategy.value?.manageSelectionByExtraColumn(this)
 
         stateStore.update(
             State(

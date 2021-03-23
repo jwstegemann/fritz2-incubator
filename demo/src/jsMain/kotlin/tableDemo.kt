@@ -1236,7 +1236,7 @@ object Formats {
 fun RenderContext.tableDemo() {
     toggle.data.map { fakeData[it]!! } handledBy TableStore.update
 
-    val selectionModeStore = storeOf(TableComponent.SelectionMode.Single)
+    val selectionModeStore = storeOf(SelectionMode.Single)
     val doubleClickStore = storeOf(Person())
     val singleSelectionStore = storeOf<Person?>(null)
     val multiSelectionStore = storeOf(emptyList<Person>())
@@ -1269,14 +1269,14 @@ fun RenderContext.tableDemo() {
 
         nav {
             navLink { text("toggle data") }.map { !toggle.current } handledBy toggle.update
-            TableComponent.SelectionMode.values().map { mode ->
+            SelectionMode.values().map { mode ->
                 navLink { text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
             }
         }
         main {
             selectionModeStore.data.render {
                 when (it) {
-                    TableComponent.SelectionMode.Single -> {
+                    SelectionMode.Single -> {
                         h2 { +"Single Selection" }
                         singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
                             .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
@@ -1284,7 +1284,7 @@ fun RenderContext.tableDemo() {
                             li { singleSelectionStore.data.asText() }
                         }
                     }
-                    TableComponent.SelectionMode.Multi -> {
+                    SelectionMode.Multi -> {
                         h2 { +"Multi Selection" }
                         multiSelectionStore.data.render { list ->
                             paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
@@ -1317,13 +1317,13 @@ fun RenderContext.tableDemo() {
 
                     selection {
                         when (selectionMode) {
-                            TableComponent.SelectionMode.Single -> {
+                            SelectionMode.Single -> {
                                 single {
                                     row(singleSelectionStore)
                                     //selected(singleSelectionStore.data)
                                 }
                             }
-                            TableComponent.SelectionMode.Multi -> {
+                            SelectionMode.Multi -> {
                                 multi {
                                     rows(multiSelectionStore)
                                     //selected(multiSelectionStore.data)
@@ -1350,9 +1350,9 @@ fun RenderContext.tableDemo() {
                             override fun manageSelectionByRowEvents(
                                 component: TableComponent<Person, Int>,
                                 rowStore: SubStore<List<Person>, List<Person>, Person>,
-                                tr: Tr
+                                renderContext: Tr
                             ) {
-                                clickStrategy.manageSelectionByRowEvents(component, rowStore, tr)
+                                clickStrategy.manageSelectionByRowEvents(component, rowStore, renderContext)
                             }
                         })
 
@@ -1422,23 +1422,18 @@ fun RenderContext.tableDemo() {
                         }
                         column("Name") {
                             lens { fullNameLens }
-                            content { context, _, rowStore ->
-                                context.apply {
-                                    inputField(store = rowStore!!.sub(fullNameLens)) { }
-                                }
-
+                            content { _, rowStore ->
+                                inputField(store = rowStore!!.sub(fullNameLens)) { }
                             }
                             width { minmax { "2fr" } }
                         }
                         column("Job") {
-                            content { renderContext, _, _ ->
-                                renderContext.apply {
-                                    select {
-                                        jobs.data.renderEach {
-                                            option {
-                                                value(it)
-                                                +it
-                                            }
+                            content { _, _ ->
+                                select {
+                                    jobs.data.renderEach {
+                                        option {
+                                            value(it)
+                                            +it
                                         }
                                     }
                                 }
@@ -1472,21 +1467,19 @@ fun RenderContext.tableDemo() {
                                 }
                             }
                             width { max { "2fr" } }
-                            content { ctx, _, rowStore ->
+                            content { _, rowStore ->
                                 rowStore?.let { person ->
                                     val street = person.sub(personAddressLens + streetLens)
                                     val houseNumber = person.sub(personAddressLens + houseNumberLens)
                                     val postalCode = person.sub(personAddressLens + postalCodeLens)
                                     val city = person.sub(personAddressLens + cityLens)
-                                    ctx.apply {
-                                        street.data.combine(houseNumber.data) { s, h ->
-                                            "$s $h"
-                                        }.combine(postalCode.data) { a, p ->
-                                            "$a ,$p"
-                                        }.combine(city.data) { a, c ->
-                                            "$a $c"
-                                        }.asText()
-                                    }
+                                    street.data.combine(houseNumber.data) { s, h ->
+                                        "$s $h"
+                                    }.combine(postalCode.data) { a, p ->
+                                        "$a ,$p"
+                                    }.combine(city.data) { a, c ->
+                                        "$a $c"
+                                    }.asText()
                                 }
                             }
                             sortBy {
