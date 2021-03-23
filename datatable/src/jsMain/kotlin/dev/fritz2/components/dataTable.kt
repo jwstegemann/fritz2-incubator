@@ -10,7 +10,7 @@ fun <T, I> RenderContext.dataTable(
     styling: GridParams.() -> Unit = {},
     dataStore: RootStore<List<T>>,
     rowIdProvider: (T) -> I,
-    baseClass: StyleClass? = null,
+    baseClass: StyleClass = StyleClass.None,
     id: String? = null,
     prefix: String = TableComponent.prefix,
     build: TableComponent<T, I>.() -> Unit = {}

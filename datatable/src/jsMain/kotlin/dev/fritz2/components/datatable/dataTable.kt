@@ -144,13 +144,13 @@ interface SortingRenderer {
 
 class SingleArrowSortingRenderer() : SortingRenderer {
     val sortDirectionSelected: Style<BasicParams> = {
-        color { base }
+        color { neutral }
     }
 
     val sortDirectionIcon: Style<BasicParams> = {
         width { "2rem" }
         height { "2rem" }
-        color { lightGray }
+        color { primary.baseContrast }
         css("cursor:pointer;")
     }
 
@@ -470,16 +470,16 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         val defaultTr: Style<BasicParams> = {
             children("&:nth-child(odd) td") {
-                background { color { lightestGray } }
+                background { color { gray100 } }
             }
         }
 
         val defaultTh: Style<BasicParams> = {
             background {
-                color { dark }
+                color { primary.base }
             }
             verticalAlign { middle }
-            color { base }
+            color { primary.baseContrast }
             fontSize { normal }
             position { relative {} }
             paddings {
@@ -491,7 +491,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 right {
                     width { "1px" }
                     style { solid }
-                    color { darkerGray }
+                    color { gray300 }
                 }
             }
 
@@ -504,13 +504,13 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 right { large }
             }
             background {
-                color { base }
+                color { gray300 }
             }
             borders {
                 right {
                     width { "1px" }
                     style { solid }
-                    color { darkerGray }
+                    color { gray700 }
                 }
             }
         }
@@ -695,7 +695,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         border {
             width { thin }
             style { solid }
-            color { dark }
+            color { gray700 }
         }
     }
 
@@ -725,7 +725,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
     var selectedRowStyleClass: StyleClass = staticStyle(
         "selectedRow", """
-        td { background-color: ${Theme().colors.primaryEffect} !important; }        
+        td { background-color: ${Theme().colors.secondary.base} !important; }        
     """.trimIndent()
     )
 
@@ -945,7 +945,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
     private fun <I> renderFixedHeaderTable(
         styling: BoxParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String,
         rowIdProvider: (T) -> I,
@@ -991,7 +991,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
     private fun <I> renderSimpleTable(
         styling: BoxParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String,
         rowIdProvider: (T) -> I,
@@ -1108,7 +1108,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
-        baseClass: StyleClass?,
+        baseClass: StyleClass,
         id: String?,
         prefix: String
     ) {

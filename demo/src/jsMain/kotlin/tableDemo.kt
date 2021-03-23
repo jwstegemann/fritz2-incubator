@@ -2,22 +2,21 @@ import dev.fritz2.binding.RootStore
 import dev.fritz2.binding.SubStore
 import dev.fritz2.binding.storeOf
 import dev.fritz2.components.*
-import dev.fritz2.components.datatable.*
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
-import dev.fritz2.dom.html.Tr
 import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.buildLens
 import dev.fritz2.lenses.format
 import dev.fritz2.styling.params.styled
-import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
 import model.Address
 import model.Person
+import dev.fritz2.components.datatable.*
+import dev.fritz2.styling.theme.important
+import kotlinx.coroutines.flow.combine
 
 val extremlyLargeFakePersonSet = """
 Christof Wesack;2016-12-25;wojciechwohlgemut@gnatz.com;05697 866667;+49(0)9219016408;Zimmerstr.;5;20803;Erkelenz
@@ -1247,7 +1246,7 @@ fun RenderContext.tableDemo() {
     appFrame {
         brand {
             icon({
-                color { lighterGray }
+                color { gray300 }
                 size { "2rem" }
                 margins { right { normal } }
             }) { fromTheme { fritz2 } }
@@ -1400,6 +1399,9 @@ fun RenderContext.tableDemo() {
                     }
 
 
+                    /*
+                    // Wieso ist das nicht unter options?
+                    // oder noch besser unter selection
                     selectedRowStyle {
                         children("td") {
                             background {
@@ -1410,6 +1412,7 @@ fun RenderContext.tableDemo() {
                         }
                     }
 
+                     */
 
                     columns {
                         column("ID") {
