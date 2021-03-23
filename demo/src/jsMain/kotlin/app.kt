@@ -4,9 +4,10 @@ import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.P
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.render
-import dev.fritz2.styling.params.plus
 import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.theme.Theme
+import kotlinx.coroutines.flow.map
+import org.w3c.dom.events.MouseEvent
 
 fun RenderContext.showcaseHeader(text: String) {
     (::h1.styled {
@@ -71,32 +72,37 @@ fun RenderContext.contentFrame(init: Div.() -> Unit): Div {
 
 fun main() {
 
+    val clickCounterStore = object : RootStore<Int>(0) {
+        val increment = handle<MouseEvent> { current, _ -> current + 1 }
+    }
+
     render("#target") {
         h1 { +"fritz incubator - Demo" }
         div {
             menu {
-                /*toggle {
+                toggle {
                     pushButton {
-                        text("Test")
+                        text(clickCounterStore.data.map { "Click-counter: $it" })
                     }
-                }*/
+                }
                 placement { bottom }
                 items {
                     item {
-                        leftIcon { ban }
-                        text("This is a simple menu-item.")
-                    }
+                        leftIcon { add }
+                        text("Increment the click-counter")
+                    } handledBy clickCounterStore.increment
+
                     divider()
                     subheader {
-                        text("This is a sub-header")
+                        text("Here are some more, unrelated items:")
                     }
                     item {
-                        leftIcon { link }
-                        text("Menu-item in a group.")
+                        leftIcon { circleInformation }
+                        text("Info")
                     }
                     item {
-                        leftIcon { camera }
-                        text("Menu-item in a group 2.")
+                        leftIcon { circleHelp }
+                        text("Help")
                     }
                     divider()
                     subheader("Custom menu entries:")

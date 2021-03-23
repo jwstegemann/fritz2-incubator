@@ -212,34 +212,30 @@ interface MenuEntry : Component<Unit>
 
 class MenuEntriesContext {
 
-    private interface MenuEntryContext {
-        fun build(): MenuEntry
-    }
-
-    class ItemContext : MenuEntryContext {
+    class ItemContext {
         val leftIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
         val text = ComponentProperty("")
         val rightIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
 
-        override fun build() = MenuItem(
+        fun build() = MenuItem(
             leftIcon.value?.invoke((Theme().icons)),
             text.value,
             rightIcon.value?.invoke(Theme().icons)
         )
     }
 
-    class CustomContentContext : MenuEntryContext {
+    class CustomContentContext {
         val content = ComponentProperty<RenderContext.() -> Unit> { }
-        override fun build(): MenuEntry = MenuCustomContent(content.value)
+        fun build() = MenuCustomContent(content.value)
     }
 
-    class SubheaderContext : MenuEntryContext {
+    class SubheaderContext {
         val text = ComponentProperty("")
-        override fun build(): MenuEntry = MenuSubheader(text.value)
+        fun build() = MenuSubheader(text.value)
     }
 
-    class DividerContext : MenuEntryContext {
-        override fun build(): MenuEntry = MenuDivider()
+    class DividerContext {
+        fun build() = MenuDivider()
     }
 
 
