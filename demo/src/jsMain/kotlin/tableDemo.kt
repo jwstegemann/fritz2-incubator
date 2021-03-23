@@ -15,6 +15,7 @@ import kotlinx.datetime.LocalDate
 import model.Address
 import model.Person
 import dev.fritz2.components.datatable.*
+import dev.fritz2.dom.html.Tr
 import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.flow.combine
 
@@ -1336,15 +1337,14 @@ fun RenderContext.tableDemo() {
                         // Ohne Strategy -> default wird je nach Mode gesetzt!
                         // (Ohne Mode wird immer NoSelection gewählt)
                         //strategy { checkbox }
-                        strategy { click }
-                        /*
+                        //strategy { click }
                         // Custom strategy: Use both variants
                         strategy(object : SelectionStrategy<Person, Int> {
                             private val checkBoxStrategy = SelectionByCheckBox<Person, Int>()
                             private val clickStrategy = SelectionByClick<Person, Int>()
 
-                            override fun addExtraColumn(component: TableComponent<Person, Int>) {
-                                checkBoxStrategy.addExtraColumn(component)
+                            override fun manageSelectionByExtraColumn(component: TableComponent<Person, Int>) {
+                                checkBoxStrategy.manageSelectionByExtraColumn(component)
                             }
 
                             override fun manageSelectionByRowEvents(
@@ -1355,17 +1355,15 @@ fun RenderContext.tableDemo() {
                                 clickStrategy.manageSelectionByRowEvents(component, rowStore, renderContext)
                             }
                         })
-
-                         */
                     }
 
                     events {
                         /*
                         when (selectionMode) {
-                            TableComponent.SelectionMode.Single -> {
+                            SelectionMode.Single -> {
                                 selectedRow handledBy singleSelectionStore.update
                             }
-                            TableComponent.SelectionMode.Multi -> {
+                            SelectionMode.Multi -> {
                                 selectedRows handledBy multiSelectionStore.update
                             }
                         }
@@ -1416,16 +1414,16 @@ fun RenderContext.tableDemo() {
 
                     columns {
                         column("ID") {
-                            lens { personIdLens + Formats.intFormat }
-                            width { minmax { "80px" } }
+                            lens(personIdLens + Formats.intFormat)
+                            width { minmax("80px") }
 
                         }
                         column("Name") {
-                            lens { fullNameLens }
+                            lens(fullNameLens)
                             content { _, rowStore ->
                                 inputField(store = rowStore!!.sub(fullNameLens)) { }
                             }
-                            width { minmax { "2fr" } }
+                            width { minmax("2fr") }
                         }
                         column("Job") {
                             content { _, _ ->
@@ -1440,23 +1438,21 @@ fun RenderContext.tableDemo() {
                             }
                         }
                         column("Birthday") {
-                            lens { birthdayLens + Formats.dateFormat }
-                            width { minmax { "120px" } }
+                            lens(birthdayLens + Formats.dateFormat)
+                            width { minmax("120px") }
                             styling {
                                 color { danger }
                             }
-                            sortBy {
-                                compareBy { person ->
-                                    person.birthday
-                                }
-                            }
+                            sortBy(compareBy { person ->
+                                person.birthday
+                            })
                         }
                         column {
                             // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
                             // the data from the table itself!
                             // ``header`` oder ``head``?
                             header {
-                                title { "Address" }
+                                title("Address")
                                 styling {
                                     background { color { "purple" } }
                                     fontWeight { bold }
@@ -1466,7 +1462,7 @@ fun RenderContext.tableDemo() {
                                     icon { fromTheme { fritz2 } }
                                 }
                             }
-                            width { max { "2fr" } }
+                            width { max("2fr") }
                             content { _, rowStore ->
                                 rowStore?.let { person ->
                                     val street = person.sub(personAddressLens + streetLens)
@@ -1482,25 +1478,23 @@ fun RenderContext.tableDemo() {
                                     }.asText()
                                 }
                             }
-                            sortBy {
-                                compareBy<Person> { person ->
-                                    person.address.city
-                                }.thenBy { person ->
-                                    person.address.street
-                                }
-                            }
+                            sortBy(compareBy<Person> { person ->
+                                person.address.city
+                            }.thenBy { person ->
+                                person.address.street
+                            })
                         }
                         // IDEA: Grouping of columns for saving column space
                         // No semantic meaning, but visibility improvements
                         //group("Contact") {
                         column("Phone") {
-                            lens { phoneLens }
+                            lens(phoneLens)
                             sorting { disabled }
                         }
-                        column("Mobile") { lens { mobileLens } }
+                        column("Mobile") { lens(mobileLens) }
                         column("E-Mail") {
-                            lens { emailLens }
-                            width { minmax { "2fr" } }
+                            lens(emailLens)
+                            width { minmax("2fr") }
                         }
                         //}
                     }

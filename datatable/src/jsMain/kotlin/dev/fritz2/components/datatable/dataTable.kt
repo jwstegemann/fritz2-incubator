@@ -47,26 +47,10 @@ data class Column<T>(
     val sorting: Sorting = Sorting.NONE,
     val sortBy: Comparator<T>? = null,
     val styling: Style<BasicParams> = {},
-    // TODO: Remove default
-    val content: (
-        renderContext: Td,
-        cellStore: Store<String>?,
-        rowStore: SubStore<List<T>, List<T>, T>?
-    ) -> Unit = { renderContext, store, _ ->
-        renderContext.apply {
-            store?.data?.asText()
-        }
-    },
+    val content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit,
     val stylingHead: Style<BasicParams> = {},
-    // TODO: Remove default
-    val contentHead: Div.(column: Column<T>) -> Unit = { config ->
-        +config.headerName
-    }
-) {
-    fun applyContent(context: Div) {
-        context.contentHead(this)
-    }
-}
+    val contentHead: Div.(column: Column<T>) -> Unit
+)
 
 data class ColumnIdSorting(
     val id: String?,
@@ -290,89 +274,76 @@ class NoSelection<T, I> : SelectionStrategy<T, I> {
 }
 
 class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
+
+    private val commonSettings: TableComponent.TableColumnsContext.TableColumnContext<T>.(
+        component: TableComponent<T, I>
+    ) -> Unit = { component ->
+        width {
+            min("60px")
+            max("60px")
+        }
+        sorting { disabled }
+        content { _, rowStore ->
+            checkbox(
+                { margin { "0" } },
+                id = uniqueId()
+            ) {
+                if (rowStore != null) {
+                    checked(
+                        component.selectionStore.data.map { selectedRows ->
+                            selectedRows.contains(rowStore.current)
+                        }
+                    )
+                    events {
+                        clicks.events.map {
+                            rowStore.current
+                        } handledBy component.selectionStore.selectRows
+                    }
+                }
+            }
+        }
+    }
+
+    private val headerSettings: TableComponent.TableColumnsContext.TableColumnContext<T>.(
+        component: TableComponent<T, I>
+    ) -> Unit = { component ->
+        header {
+            content {
+                checkbox({ display { inlineBlock } }, id = uniqueId()) {
+                    checked(
+                        component.selectionStore.data.map {
+                            it.isNotEmpty() && it == component.dataStore.current
+                        }
+                    )
+                    events {
+
+                        changes.states().map { selected ->
+                            if (selected) {
+                                component.dataStore.current
+                            } else {
+                                emptyList()
+                            }
+                        } handledBy component.selectionStore.update
+
+                    }
+                }
+            }
+        }
+    }
+
     override fun manageSelectionByExtraColumn(component: TableComponent<T, I>) {
         with(component) {
             prependAdditionalColumns {
                 when (selection.value.selectionMode) {
                     SelectionMode.Multi -> {
                         column {
-                            width {
-                                min { "60px" }
-                                max { "60px" }
-                            }
-                            header {
-                                content {
-                                    checkbox({ display { inlineBlock } }, id = uniqueId()) {
-                                        checked(
-                                            selectionStore.data.map {
-                                                it.isNotEmpty() && it == dataStore.current
-                                            }
-                                        )
-                                        events {
-
-                                            changes.states().map { selected ->
-                                                if (selected) {
-                                                    dataStore.current
-                                                } else {
-                                                    emptyList()
-                                                }
-                                            } handledBy selectionStore.update
-
-                                        }
-                                    }
-                                }
-                            }
-                            content { _, rowStore ->
-                                checkbox(
-                                    { margin { "0" } },
-                                    id = uniqueId()
-                                ) {
-                                    if (rowStore != null) {
-                                        checked(
-                                            selectionStore.data.map { selectedRows ->
-                                                selectedRows.contains(rowStore.current)
-                                            }
-                                        )
-                                        events {
-                                            clicks.events.map {
-                                                rowStore.current
-                                            } handledBy selectionStore.selectRows
-                                        }
-                                    }
-
-                                }
-                            }
-                            sorting { disabled }
+                            headerSettings(component)
+                            commonSettings(component)
                         }
                     }
                     SelectionMode.Single -> {
                         column {
-                            width {
-                                min { "60px" }
-                                max { "60px" }
-                            }
-                            content { _, rowStore ->
-                                checkbox(
-                                    { margin { "0" } },
-                                    id = uniqueId()
-                                ) {
-                                    if (rowStore != null) {
-                                        checked(
-                                            // TODO: Remove ols events handling!
-                                            selectionStore.data.map { selectedRows ->
-                                                selectedRows.contains(rowStore.current)
-                                            }
-                                        )
-                                        events {
-
-                                            clicks.events.map {
-                                                rowStore.current
-                                            } handledBy selectionStore.selectRow
-                                        }
-                                    }
-                                }
-                            }
-                            sorting { Sorting.DISABLED }
+                            commonSettings(component)
                         }
                     }
                     else -> {
@@ -531,48 +502,32 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         class TableColumnContext<T> {
 
-            // TODO: Enhance setup by setting a default comparator lens based
-            // see createInitialComparator, if block and combineWithPreviousComparator if block!
             fun build(): Column<T> = Column(
-                _id,
-                lens,
-                header.title,
-                width?.min,
-                width?.max,
-                hidden,
-                position,
+                _id.value,
+                lens.value,
+                header.title.value,
+                width?.min?.value,
+                width?.max?.value,
+                hidden.value,
+                position.value,
                 sorting.value(SortingContext),
-                sortBy,
-                styling,
-                content,
-                header.styling,
-                header.content
+                sortBy.value,
+                styling.value,
+                content.value,
+                header.styling.value,
+                header.content.value
             )
 
-            private var _id: String = uniqueId()
-            fun id(value: () -> String) {
-                _id = value()
-            }
-
-            private var lens: Lens<T, String>? = null
-            fun lens(value: () -> Lens<T, String>) {
-                lens = value()
-            }
+            val _id = ComponentProperty(uniqueId())
+            val lens = ComponentProperty<Lens<T, String>?>(null)
 
             class WidthContext {
-                var min: Property? = null
-                fun min(value: () -> Property) {
-                    min = value()
-                }
+                val min = ComponentProperty<Property?>(null)
+                val max = ComponentProperty<Property?>(null)
 
-                var max: Property? = null
-                fun max(value: () -> Property) {
-                    max = value()
-                }
-
-                fun minmax(value: () -> Property) {
-                    max = value()
-                    min = value()
+                fun minmax(value: Property) {
+                    max(value)
+                    min(value)
                 }
             }
 
@@ -583,41 +538,21 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             }
 
             class HeaderContext<T> {
-
-                var title: String = ""
-                fun title(value: () -> String) {
-                    title = value()
-                }
-
-                var styling: Style<BasicParams> = {}
-                fun styling(value: Style<BasicParams>) {
-                    styling = value
-                }
-
-                var content: Div.(column: Column<T>) -> Unit = { config ->
+                val title = ComponentProperty("")
+                val styling = ComponentProperty<Style<BasicParams>> {}
+                val content = ComponentProperty<Div.(column: Column<T>) -> Unit> { config ->
                     +config.headerName
-                }
-
-                fun content(expression: Div.(column: Column<T>) -> Unit) {
-                    content = expression
                 }
             }
 
-            private var header: HeaderContext<T> = HeaderContext<T>()
+            private var header: HeaderContext<T> = HeaderContext()
 
             fun header(expression: HeaderContext<T>.() -> Unit) {
                 header = HeaderContext<T>().apply(expression)
             }
 
-            private var hidden: Boolean = false
-            fun hidden(value: () -> Boolean) {
-                hidden = value()
-            }
-
-            private var position: Int = 0
-            fun position(value: () -> Int) {
-                position = value()
-            }
+            val hidden = ComponentProperty(false)
+            val position = ComponentProperty(0)
 
             object SortingContext {
                 val disabled = Sorting.DISABLED
@@ -627,23 +562,12 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             }
 
             val sorting = ComponentProperty<SortingContext.() -> Sorting> { none }
+            val sortBy = ComponentProperty<Comparator<T>?>(null)
+            val styling = ComponentProperty<Style<BasicParams>> {}
 
-            private var sortBy: Comparator<T>? = null
-            fun sortBy(value: () -> Comparator<T>) {
-                sortBy = value()
-            }
-
-            private var styling: Style<BasicParams> = {}
-            fun styling(value: Style<BasicParams>) {
-                styling = value
-            }
-
-            private var content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit =
+            val content =
+                ComponentProperty<Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit>
                 { store, _ -> store?.data?.asText() }
-
-            fun content(expression: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit) {
-                content = expression
-            }
         }
 
         private var initialColumns: MutableMap<String, Column<T>> = mutableMapOf()
@@ -657,7 +581,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         fun column(title: String = "", expression: TableColumnContext<T>.() -> Unit) {
             TableColumnContext<T>().apply {
-                header { title { title } }
+                header { title(title) }
                 expression()
             }.build().also { initialColumns[it._id] = it }
         }
@@ -994,11 +918,11 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
     private fun renderTHead(
         styling: GridParams.() -> Unit,
-        RenderContext: RenderContext
+        renderContext: RenderContext
     ) {
         val component = this
 
-        RenderContext.apply {
+        renderContext.apply {
             (::thead.styled() {
                 component.defaultTHeadStyle()
                 styling()
@@ -1016,7 +940,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                                     alignItems { center }
                                 }) {
                                     // Column Header Content
-                                    column.applyContent(this)
+                                    with(column) { contentHead(this) }
 
                                     // Sorting
                                     (::div.styled(sorterStyle) {}){
@@ -1030,7 +954,9 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                                         } else {
                                             component.options.sorting.renderer.value.renderSortingDisabled(this)
                                         }
-                                        clicks.events.map { ColumnIdSorting.of(column) } handledBy component.stateStore.sortingChanged
+                                        clicks.events.map {
+                                            ColumnIdSorting.of(column)
+                                        } handledBy component.stateStore.sortingChanged
                                     }
                                 }
                             }
@@ -1043,10 +969,10 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
     private fun <I> renderTBody(
         styling: GridParams.() -> Unit,
         rowIdProvider: (T) -> I,
-        RenderContext: RenderContext
+        renderContext: RenderContext
     ) {
         val component = this
-        RenderContext.apply {
+        renderContext.apply {
             (::tbody.styled {
                 component.defaultTBodyStyle()
                 styling()
