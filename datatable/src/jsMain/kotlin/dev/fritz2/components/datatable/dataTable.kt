@@ -487,13 +487,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 }
             }
         }
-
-        // TODO: Ggf. ausbauen -> Wozu notwendig?
-        enum class CaptionPlacement {
-            TOP,
-            BOTTOM
-        }
-
     }
 
     private val columnStateIdProvider: (Pair<Column<T>, ColumnIdSorting>) -> String = { it.first._id + it.second }
@@ -637,28 +630,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
     fun events(expr: EventsContext<T>.() -> Unit) {
         EventsContext(selectionStore).expr()
-    }
-
-    var captionPlacement: CaptionPlacement = CaptionPlacement.TOP
-    fun captionPlacement(value: CaptionPlacement) {
-        captionPlacement = value
-    }
-
-    var caption: (RenderContext.() -> Unit)? = null
-    fun caption(value: (RenderContext.() -> Unit)) {
-        caption = {
-            box { value() }
-        }
-    }
-
-    fun caption(value: String) {
-        this.caption(flowOf(value))
-    }
-
-    fun caption(value: Flow<String>) {
-        caption = {
-            box { value.asText() }
-        }
     }
 
     class Selection<T, I> {
@@ -1023,10 +994,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 else -> Unit
             }
 
-            if (captionPlacement == Companion.CaptionPlacement.TOP) {
-                caption?.invoke(this)
-            }
-
             (::div.styled {
                 options.value.width.value?.also { width { it } }
                 options.value.height.value?.also { height { it } }
@@ -1041,10 +1008,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 position { relative { } }
             }) {
                 renderTable(styling, baseClass, id, prefix, rowIdProvider, this)
-            }
-
-            if (captionPlacement == Companion.CaptionPlacement.BOTTOM) {
-                caption?.invoke(this)
             }
 
             // tie selection to external store if needed

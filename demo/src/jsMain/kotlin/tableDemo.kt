@@ -1312,10 +1312,6 @@ fun RenderContext.tableDemo() {
 
             selectionModeStore.data.render { selectionMode ->
                 dataTable(dataStore = TableStore, rowIdProvider = Person::id) {
-                    caption(selectionModeStore.data.map { mode ->
-                        "Table with \"${mode.name}\" Selection Mode "
-                    })
-
                     selection {
                         when (selectionMode) {
                             SelectionMode.Single -> {
