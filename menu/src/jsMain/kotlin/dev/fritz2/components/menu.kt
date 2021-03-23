@@ -77,7 +77,7 @@ private val staticMenuEntryCss = staticStyle("menu-entry") {
 
 
 @ComponentMarker
-open class MenuComponent : Component<Unit> {
+open class MenuComponent<E : MenuEntriesContext>(private val entryContextProvider: () -> E) : Component<Unit> {
 
     companion object {
         private val staticContainerCss = staticStyle("menu-container") {
@@ -117,7 +117,7 @@ open class MenuComponent : Component<Unit> {
             variant { outline }
         }
     }
-    val items = ComponentProperty<(MenuEntriesContext.() -> Unit)?>(value = null)
+    val items = ComponentProperty<(E.() -> Unit)?>(value = null)
     val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
 
     override fun render(
@@ -169,7 +169,7 @@ open class MenuComponent : Component<Unit> {
             prefix = prefix
         ) {
             items.value?.let {
-                val entriesContext = MenuEntriesContext().apply(it)
+                val entriesContext = entryContextProvider().apply(it)
                 entriesContext.entries.forEach { entry ->
                     entry.render(context = this, styling = {}, StyleClass.None, id = null, prefix)
                 }
@@ -202,15 +202,24 @@ fun RenderContext.menu(
     baseClass: StyleClass = StyleClass.None,
     id: String = "menu-dropdown-${uniqueId()}",
     prefix: String = "menu-dropdown",
-    build: MenuComponent.() -> Unit,
-) = MenuComponent()
+    build: MenuComponent<MenuEntriesContext>.() -> Unit,
+) = menu(styling, entriesContextProvider = { MenuEntriesContext() }, baseClass, id, prefix, build)
+
+fun <E : MenuEntriesContext> RenderContext.menu(
+    styling: BasicParams.() -> Unit = {},
+    entriesContextProvider: () -> E,
+    baseClass: StyleClass = StyleClass.None,
+    id: String = "menu-dropdown-${uniqueId()}",
+    prefix: String = "menu-dropdown",
+    build: MenuComponent<E>.() -> Unit,
+) = MenuComponent(entriesContextProvider)
     .apply(build)
     .render(this, styling, baseClass, id, prefix)
 
 
-interface MenuEntry : Component<Unit>
+typealias MenuEntry = Component<Unit>
 
-class MenuEntriesContext {
+open class MenuEntriesContext {
 
     class ItemContext {
         val leftIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
@@ -243,12 +252,16 @@ class MenuEntriesContext {
     val entries: List<MenuEntry>
         get() = _entries.toList()
 
+    protected fun addEntry(entry: MenuEntry) {
+        _entries += entry
+    }
+
 
     fun item(expression: ItemContext.() -> Unit): Flow<MouseEvent> {
         val item = ItemContext()
             .apply(expression)
             .build()
-            .also { _entries += it }
+            .also(::addEntry)
 
         return item.clicks
     }
@@ -256,19 +269,19 @@ class MenuEntriesContext {
     fun custom(content: RenderContext.() -> Unit) = CustomContentContext()
         .apply { content(content) }
         .build()
-        .also { _entries += it }
+        .also(::addEntry)
 
     fun subheader(expression: SubheaderContext.() -> Unit) = SubheaderContext()
         .apply(expression)
         .build()
-        .also { _entries += it }
+        .also(::addEntry)
 
     fun subheader(text: String) = subheader { text(text) }
 
     fun divider(expression: DividerContext.() -> Unit = { }) = DividerContext()
         .apply(expression)
         .build()
-        .also { _entries += it }
+        .also(::addEntry)
 }
 
 

@@ -4,6 +4,8 @@ import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.P
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.dom.html.render
+import dev.fritz2.styling.StyleClass
+import dev.fritz2.styling.params.BoxParams
 import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.theme.Theme
 import kotlinx.coroutines.flow.map
@@ -70,6 +72,34 @@ fun RenderContext.contentFrame(init: Div.() -> Unit): Div {
     }
 }
 
+
+class MyCustomEntriesContext : MenuEntriesContext() {
+
+    class RadioGroupContext {
+        val items = ComponentProperty(listOf<String>())
+
+        fun build() = object : MenuEntry {
+            override fun render(
+                context: RenderContext,
+                styling: BoxParams.() -> Unit,
+                baseClass: StyleClass,
+                id: String?,
+                prefix: String
+            ) {
+                context.apply {
+                    radioGroup(items = items.value)
+                }
+            }
+        }
+    }
+
+    fun radios(expression: RadioGroupContext.() -> Unit) = RadioGroupContext()
+        .apply(expression)
+        .build()
+        .also(::addEntry)
+}
+
+
 fun main() {
 
     val clickCounterStore = object : RootStore<Int>(0) {
@@ -79,7 +109,7 @@ fun main() {
     render("#target") {
         h1 { +"fritz incubator - Demo" }
         div {
-            menu {
+            menu(entriesContextProvider = { MyCustomEntriesContext() }) {
                 toggle {
                     pushButton {
                         text(clickCounterStore.data.map { "Click-counter: $it" })
@@ -93,9 +123,7 @@ fun main() {
                     } handledBy clickCounterStore.increment
 
                     divider()
-                    subheader {
-                        text("Here are some more, unrelated items:")
-                    }
+                    subheader("Here are some more, unrelated items:")
                     item {
                         leftIcon { circleInformation }
                         text("Info")
@@ -114,6 +142,11 @@ fun main() {
                     custom {
                         spinner { }
                     }
+                    divider()
+                    subheader("Items from a custom MenuEntryContext")
+                    radios {
+                        items(listOf("Item 1", "Item 2", "Item 3"))
+                    }
                 }
             }
         }
@@ -121,6 +154,7 @@ fun main() {
         tableDemo()
     }
 }
+
 
 fun title(s: String) {
 
