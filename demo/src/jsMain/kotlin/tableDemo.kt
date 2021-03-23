@@ -1278,51 +1278,51 @@ fun RenderContext.tableDemo() {
             lineUp {
                 items {
 
-                /*
-            selectionModeStore.data.render {
-                when (it) {
-                    SelectionMode.Single -> {
+                    /*
+                selectionModeStore.data.render {
+                    when (it) {
+                        SelectionMode.Single -> {
 
-                 */
+                     */
                     stackUp {
                         items {
 
-                        h2 { +"Single Selection" }
-                        singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
-                            .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
-                        ul {
-                            li { singleSelectionStore.data.map { it?.fullName }.asText() }
-                        }
-                        }
-                    }
-                /*
-                    }
-                    SelectionMode.Multi -> {
-
-                 */
-                    stackUp {
-                        items {
-
-                        h2 { +"Multi Selection" }
-                        multiSelectionStore.data.render { list ->
-                            paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
-                        }
-
-                        ul {
-                            multiSelectionStore.data.renderEach {
-                                li { +it.fullName }
+                            h2 { +"Single Selection" }
+                            singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
+                                .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
+                            ul {
+                                li { singleSelectionStore.data.map { it?.fullName }.asText() }
                             }
                         }
+                    }
+                    /*
+                        }
+                        SelectionMode.Multi -> {
+
+                     */
+                    stackUp {
+                        items {
+
+                            h2 { +"Multi Selection" }
+                            multiSelectionStore.data.render { list ->
+                                paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
+                            }
+
+                            ul {
+                                multiSelectionStore.data.renderEach {
+                                    li { +it.fullName }
+                                }
+                            }
                         }
                     }
-                /*
+                    /*
+                        }
+                        else -> {
+                        }
                     }
-                    else -> {
-                    }
-                }
 
-            }
-                 */
+                }
+                     */
 
                 }
             }
@@ -1360,6 +1360,7 @@ fun RenderContext.tableDemo() {
                         //strategy { checkbox }
                         //strategy { click }
                         // Custom strategy: Use both variants
+                        /*
                         strategy(object : SelectionStrategy<Person, Int> {
                             private val checkBoxStrategy = SelectionByCheckBox<Person, Int>()
                             private val clickStrategy = SelectionByClick<Person, Int>()
@@ -1376,6 +1377,8 @@ fun RenderContext.tableDemo() {
                                 clickStrategy.manageSelectionByRowEvents(component, rowStore, renderContext)
                             }
                         })
+
+                         */
                     }
 
                     events {
@@ -1441,7 +1444,9 @@ fun RenderContext.tableDemo() {
                         column("Name") {
                             lens(fullNameLens)
                             content { _, rowStore ->
-                                inputField(store = rowStore!!.sub(fullNameLens)) { }
+                                inputField(store = rowStore!!.sub(fullNameLens)) {
+                                    size { small }
+                                }
                             }
                             width { minmax("2fr") }
                         }
