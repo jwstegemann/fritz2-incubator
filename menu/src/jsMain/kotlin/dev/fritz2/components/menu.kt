@@ -11,10 +11,9 @@ import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
 import dev.fritz2.styling.theme.Theme
 import kotlinx.browser.document
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.*
 import org.w3c.dom.events.MouseEvent
+import kotlin.js.Date
 
 
 // TODO: Move styles into theme
@@ -263,8 +262,14 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
     }
 
     private fun RenderContext.listenToWindowEvents(dropdownId: String) {
+        // delay listening so the dropdown is not closed immediately:
+        val startListeningMillis = Date.now() + 200
+
         Window.clicks.events
             .filter { event ->
+                if (Date.now() < startListeningMillis)
+                    return@filter false
+
                 val dropdownElement = document.getElementById(dropdownId)
                 dropdownElement?.let {
                     val bounds = it.getBoundingClientRect()
