@@ -114,6 +114,14 @@ fun main() {
     render("#target") {
         h1 { +"fritz incubator - Demo" }
         div {
+            menu {
+                items {
+                    item {
+                        text("Test")
+                    }
+                }
+            }
+
             menu(entriesContextProvider = { MyCustomEntriesContext() }) {
                 toggle {
                     pushButton {

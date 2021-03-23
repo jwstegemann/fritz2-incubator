@@ -164,6 +164,7 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
 
     companion object {
         private val staticContainerCss = staticStyle("menu-container") {
+            display { inlineBlock }
             width { minContent }
         }
 
@@ -213,7 +214,7 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
         val placement = placement.value.invoke(menuStyles.placements)
 
         context.apply {
-            flexBox(baseClass = staticContainerCss, styling = placement.containerLayout) {
+            box(baseClass = staticContainerCss, styling = placement.containerLayout) {
 
                 box(id = "menu-toggle-${uniqueId()}") {
                     toggle.value(this)
