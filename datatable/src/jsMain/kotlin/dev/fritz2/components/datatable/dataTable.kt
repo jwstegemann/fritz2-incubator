@@ -29,6 +29,12 @@ enum class Sorting {
     DESC
 }
 
+enum class SelectionMode {
+    None,
+    Single,
+    Multi
+}
+
 @Lenses
 data class Column<T>(
     val _id: String, // must be unique!
@@ -288,7 +294,7 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
         with(component) {
             prependAdditionalColumns {
                 when (selection.value.selectionMode) {
-                    TableComponent.SelectionMode.Multi -> {
+                    SelectionMode.Multi -> {
                         column {
                             width {
                                 min { "60px" }
@@ -341,7 +347,7 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
                             sorting { disabled }
                         }
                     }
-                    TableComponent.SelectionMode.Single -> {
+                    SelectionMode.Single -> {
                         column {
                             width {
                                 min { "60px" }
@@ -401,9 +407,9 @@ class SelectionByClick<T, I> : SelectionStrategy<T, I> {
     ) {
         renderContext.apply {
             when (component.selection.value.selectionMode) {
-                TableComponent.SelectionMode.Single ->
+                SelectionMode.Single ->
                     clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRow
-                TableComponent.SelectionMode.Multi ->
+                SelectionMode.Multi ->
                     clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRows
                 else -> Unit
             }
@@ -767,12 +773,6 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         caption = {
             box { value.asText() }
         }
-    }
-
-    enum class SelectionMode {
-        None,
-        Single,
-        Multi
     }
 
     class Selection<T, I> {
