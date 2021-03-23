@@ -76,8 +76,93 @@ private val staticMenuEntryCss = staticStyle("menu-entry") {
 }
 
 
+/**
+ * This class combines the _configuration_ and the core rendering of a menu.
+ *
+ * A menu consists of a toggle element as well as it's actual content in form of a drop-down with customizable entries.
+ * The dropdown floats around the toggle-element and can be closed by simply clicking outside the dropdown.
+ *
+ * The toggle-element can be any component and is passed via the `toggle` property. A button with a standard
+ * menu-icon is used if no toggle-element is specified.
+ *
+ * The dropdown can be placed _to the left_, _to the right_ or _below_ the toggle-element. This can be specified via the
+ * `placement` property. The default placement is below the toggle.
+ *
+ * Menu entries are specified via a dedicated context exposed by the `items` property.
+ * By default the following types of entries can be added to the menu:
+ * - Items
+ * - Subheaders
+ * - Dividers
+ *
+ * It is also possible to add any other fritz2 component. In this case all menu-specific styling (such as paddings) has
+ * to be done manually, however.
+ *
+ * Example usage:
+ * ```kotlin
+ * menu {
+ *      toggle { pushButton { text("Toggle") } }
+ *      placement { below }
+ *      items {
+ *          item {
+ *              leftIcon { add }
+ *              text("Item")
+ *          }
+ *          divider()
+ *          subheader("A subsection starts here")
+ *          custom {
+ *              // custom content
+ *              spinner { }
+ *          }
+ *      }
+ * }
+ * ```
+ *
+ * Additionally, it is also possible to extend the menu-DSL by injecting a custom subclass of [MenuEntriesContext] that
+ * adds additional functionality which may be useful for specific use-cases in which a component is used so often that
+ * it might be cumbersome to always pass it via the `custom`-property.
+ * This is done via the `entriesContextProvider`-parameter of the [menu]-function. The latter is overloaded in such a
+ * way that the custom DSL-elements will be available in the `items`-context once passed.
+ *
+ * Example:
+ * ```kotlin
+ * // custom MenuEntryContext that adds support for radio-groups:
+ * class MyCustomEntriesContext : MenuEntriesContext() {
+ *
+ *      class RadioGroupContext {
+ *            val items = ComponentProperty(listOf<String>())
+ *
+ *            fun build() = object : MenuEntry {
+ *               override fun render(
+ *                   context: RenderContext,
+ *                   styling: BoxParams.() -> Unit,
+ *                   baseClass: StyleClass,
+ *                   id: String?,
+ *                   prefix: String
+ *               ) {
+ *                   context.apply {
+ *                        radioGroup(items = items.value)
+ *                    }
+ *                }
+ *            }
+ *      }
+ *
+ *      fun radios(expression: RadioGroupContext.() -> Unit) = RadioGroupContext()
+ *          .apply(expression)
+ *          .build()
+ *          .also(::addEntry) // <-- add the entry to the menu
+ * }
+ *
+ * // passing the custom context at the creation of the menu:
+ * menu(entriesContextProvider = { MyCustomEntriesContext() }) {
+ *      items {
+ *          // now available:
+ *          radios { ... }
+ *      }
+ * }
+ * ```
+ */
 @ComponentMarker
-open class MenuComponent<E : MenuEntriesContext>(private val entryContextProvider: () -> E) : Component<Unit> {
+open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvider: () -> E) : Component<Unit> {
 
     companion object {
         private val staticContainerCss = staticStyle("menu-container") {
@@ -169,7 +254,7 @@ open class MenuComponent<E : MenuEntriesContext>(private val entryContextProvide
             prefix = prefix
         ) {
             items.value?.let {
-                val entriesContext = entryContextProvider().apply(it)
+                val entriesContext = entriesContextProvider().apply(it)
                 entriesContext.entries.forEach { entry ->
                     entry.render(context = this, styling = {}, StyleClass.None, id = null, prefix)
                 }
@@ -197,6 +282,16 @@ open class MenuComponent<E : MenuEntriesContext>(private val entryContextProvide
     }
 }
 
+/**
+ * Creates a standard menu.
+ * For a menu with a custom, extended DSL use the overloaded variant of this function.
+ *
+ * @param styling a lambda expression for declaring the styling as fritz2's styling DSL
+ * @param baseClass optional CSS class that should be applied to the element
+ * @param id the ID of the element
+ * @param prefix the prefix for the generated CSS class resulting in the form ``$prefix-$hash``
+ * @param build a lambda expression for setting up the component itself.
+ */
 fun RenderContext.menu(
     styling: BasicParams.() -> Unit = {},
     baseClass: StyleClass = StyleClass.None,
@@ -205,6 +300,21 @@ fun RenderContext.menu(
     build: MenuComponent<MenuEntriesContext>.() -> Unit,
 ) = menu(styling, entriesContextProvider = { MenuEntriesContext() }, baseClass, id, prefix, build)
 
+/**
+ * Creates a menu with an explicitly specified [MenuEntriesContext] (-subclass) that can be used to extend the menu-DSL.
+ *
+ * Important: Make sure to pass a [entriesContextProvider] that _does not_ re-use instances of the custom
+ * entries-context but instead returns a new instance every time it is called.
+ * The menu will be rendered multiple times otherwise!
+ *
+ * @param styling a lambda expression for declaring the styling as fritz2's styling DSL
+ * @param E the actual type of the custom [MenuEntriesContext] subclass
+ * @param entriesContextProvider a lambda returning new instances of the custom entries-context
+ * @param baseClass optional CSS class that should be applied to the element
+ * @param id the ID of the element
+ * @param prefix the prefix for the generated CSS class resulting in the form ``$prefix-$hash``
+ * @param build a lambda expression for setting up the component itself.
+ */
 fun <E : MenuEntriesContext> RenderContext.menu(
     styling: BasicParams.() -> Unit = {},
     entriesContextProvider: () -> E,
@@ -219,6 +329,10 @@ fun <E : MenuEntriesContext> RenderContext.menu(
 
 typealias MenuEntry = Component<Unit>
 
+/**
+ * Context used to build the entries of the menu.
+ * This class can also be subclassed to extend the menu-entries-DSL as explained in [MenuComponent].
+ */
 open class MenuEntriesContext {
 
     class ItemContext {
