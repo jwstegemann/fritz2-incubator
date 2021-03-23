@@ -588,63 +588,43 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
     }
 
-    var columns: Map<String, Column<T>> = mapOf()
+    val columns = ComponentProperty<Map<String, Column<T>>>(mapOf())
 
     fun columns(expression: TableColumnsContext<T>.() -> Unit) {
-        columns = TableColumnsContext<T>().apply(expression).columns
+        columns(TableColumnsContext<T>().apply(expression).columns)
     }
 
     fun prependAdditionalColumns(expression: TableColumnsContext<T>.() -> Unit) {
-        val minPos = columns.values.minOf { it.position }
-        columns =
-            (columns.entries + TableColumnsContext<T>().apply(expression).columns
+        val minPos = columns.value.values.minOf { it.position }
+        columns(
+            (columns.value.entries + TableColumnsContext<T>().apply(expression).columns
                 .mapValues { it.value.copy(position = minPos - 1) }.entries)
                 .map { (a, b) -> a to b }
                 .toMap()
+        )
     }
 
-    var defaultTHeadStyle: Style<BasicParams> = {
+    val defaultTHeadStyle = ComponentProperty<Style<BasicParams>> {
         border {
             width { thin }
             style { solid }
             color { gray700 }
         }
     }
+    val defaultThStyle = ComponentProperty<Style<BasicParams>> {}
+    val defaultTBodyStyle = ComponentProperty<Style<BasicParams>> {}
+    val defaultTdStyle = ComponentProperty<Style<BasicParams>> {}
+    val defaultTrStyle = ComponentProperty<Style<BasicParams>> {}
 
-    fun defaultTHeadStyle(value: (() -> Style<BasicParams>)) {
-        defaultTHeadStyle = value()
-    }
-
-    var defaultThStyle: Style<BasicParams> = {}
-    fun defaultThStyle(value: (() -> Style<BasicParams>)) {
-        defaultThStyle = value()
-    }
-
-    var defaultTBodyStyle: Style<BasicParams> = {}
-    fun defaultTBodyStyle(value: (() -> Style<BasicParams>)) {
-        defaultTBodyStyle = value()
-    }
-
-    var defaultTdStyle: Style<BasicParams> = {}
-    fun defaultTdStyle(value: (() -> Style<BasicParams>)) {
-        defaultTdStyle = value()
-    }
-
-    var defaultTrStyle: Style<BasicParams> = {}
-    fun defaultTrStyle(value: (() -> Style<BasicParams>)) {
-        defaultTrStyle = value()
-    }
-
-    var selectedRowStyleClass: StyleClass = staticStyle(
-        "selectedRow", """
-        td { background-color: ${Theme().colors.secondary.base} !important; }        
-    """.trimIndent()
+    val selectedRowStyleClass = ComponentProperty(
+        staticStyle(
+            "selectedRow",
+            "td { background-color: ${Theme().colors.secondary.base} !important; }"
+        )
     )
 
     fun selectedRowStyle(value: Style<BasicParams>) {
-        selectedRowStyleClass = staticStyle("customSelectedRow") {
-            value()
-        }
+        selectedRowStyleClass(staticStyle("customSelectedRow") { value() })
     }
 
     val selectionStore: RowSelectionStore<T> = RowSelectionStore()
@@ -756,9 +736,9 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             val renderer = ComponentProperty<SortingRenderer>(SingleArrowSortingRenderer())
         }
 
-        internal var sorting = Sorting<T>()
+        val sorting = ComponentProperty<Sorting<T>>(Sorting())
         fun sorting(value: Sorting<T>.() -> Unit) {
-            sorting = Sorting<T>().apply { value() }
+            sorting.value.apply { value() }
         }
 
         val fixedHeader = ComponentProperty(true)
@@ -771,14 +751,13 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         val cellMaxWidth = ComponentProperty<Property>("1fr")
     }
 
-
-    private var options = Options<T>()
+    val options = ComponentProperty(Options<T>())
     fun options(value: Options<T>.() -> Unit) {
-        options = Options<T>().apply { value() }
+        options.value.apply { value() }
     }
 
     private val stateStore: StateStore by lazy {
-        StateStore(options.sorting.reducer.value)
+        StateStore(options.value.sorting.value.reducer.value)
     }
 
     fun <I> renderTable(
@@ -804,9 +783,9 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 //var main = ""
 
                 order.forEach { itemId ->
-                    this.columns[itemId]?.let {
-                        val min = it.minWidth ?: this.options.cellMinWidth.value
-                        val max = it.maxWidth ?: this.options.cellMaxWidth.value
+                    this.columns.value[itemId]?.let {
+                        val min = it.minWidth ?: this.options.value.cellMinWidth.value
+                        val max = it.maxWidth ?: this.options.value.cellMaxWidth.value
                         minmax += "\n" + if (min == max) {
                             max
                         } else {
@@ -826,7 +805,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             }
 
 
-        if (component.options.fixedHeader.value) {
+        if (component.options.value.fixedHeader.value) {
             renderFixedHeaderTable(
                 styling,
                 tableBaseClass,
@@ -862,7 +841,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         RenderContext.apply {
             (::table.styled({
                 styling()
-                height { component.options.fixedHeaderHeight.value }
+                height { component.options.value.fixedHeaderHeight.value }
                 overflow { OverflowValues.hidden }
                 position {
                     sticky {
@@ -880,7 +859,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             (::table.styled({
                 styling()
                 margins {
-                    top { "-${component.options.fixedHeaderHeight.value}" }
+                    top { "-${component.options.value.fixedHeaderHeight.value}" }
                 }
 
                 height { "fit-content" }
@@ -924,15 +903,15 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         renderContext.apply {
             (::thead.styled() {
-                component.defaultTHeadStyle()
+                component.defaultTHeadStyle.value()
                 styling()
             }) {
                 tr {
-                    component.stateStore.data.map { it.orderedColumnsWithSorting(component.columns) }
+                    component.stateStore.data.map { it.orderedColumnsWithSorting(component.columns.value) }
                         .renderEach(component.columnStateIdProvider) { (column, sorting) ->
                             (::th.styled(column.stylingHead) {
                                 defaultTh()
-                                component.defaultThStyle()
+                                component.defaultThStyle.value()
                             })  {
                                 flexBox({
                                     height { "100%" }
@@ -945,14 +924,14 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                                     // Sorting
                                     (::div.styled(sorterStyle) {}){
                                         if (column._id == sorting.id) {
-                                            component.options.sorting.renderer.value.renderSortingActive(
+                                            component.options.value.sorting.value.renderer.value.renderSortingActive(
                                                 this,
                                                 sorting.strategy
                                             )
                                         } else if (column.sorting != Sorting.DISABLED) {
-                                            component.options.sorting.renderer.value.renderSortingLost(this)
+                                            component.options.value.sorting.value.renderer.value.renderSortingLost(this)
                                         } else {
-                                            component.options.sorting.renderer.value.renderSortingDisabled(this)
+                                            component.options.value.sorting.value.renderer.value.renderSortingDisabled(this)
                                         }
                                         clicks.events.map {
                                             ColumnIdSorting.of(column)
@@ -974,11 +953,14 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         val component = this
         renderContext.apply {
             (::tbody.styled {
-                component.defaultTBodyStyle()
+                component.defaultTBodyStyle.value()
                 styling()
             }) {
                 component.dataStore.data.combine(component.stateStore.data) { data, state ->
-                    component.options.sorting.sorter.value.sortedBy(data, state.columnSortingPlan(component.columns))
+                    component.options.value.sorting.value.sorter.value.sortedBy(
+                        data,
+                        state.columnSortingPlan(component.columns.value)
+                    )
                 }.renderEach(rowIdProvider) { t ->
                     val rowStore = component.dataStore.sub(t, rowIdProvider)
                     val selected = component.selectionStore.data.map { selectedRows ->
@@ -987,17 +969,17 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
                     (::tr.styled {
                         defaultTr()
-                        component.defaultTrStyle()
+                        component.defaultTrStyle.value()
                     }){
-                        className(component.selectedRowStyleClass.whenever(selected).name)
+                        className(component.selectedRowStyleClass.value.whenever(selected).name)
                         selection.value.strategy.value?.manageSelectionByRowEvents(component, rowStore, this)
                         dblclicks.events.map { rowStore.current } handledBy component.selectionStore.dbClickedRow
 
-                        component.stateStore.data.map { state -> state.order.mapNotNull { component.columns[it] } }
+                        component.stateStore.data.map { state -> state.order.mapNotNull { component.columns.value[it] } }
                             .renderEach { column ->
                                 (::td.styled(column.styling) {
                                     defaultTd()
-                                    component.defaultTdStyle()
+                                    component.defaultTdStyle.value()
                                 }) {
                                     if (column.lens != null) {
                                         val b = rowStore.sub(column.lens)
@@ -1025,7 +1007,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         stateStore.update(
             State(
-                columns.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
+                columns.value.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
                 emptyList()
             )
         )
@@ -1046,12 +1028,12 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             }
 
             (::div.styled {
-                options.width.value?.also { width { it } }
-                options.height.value?.also { height { it } }
-                options.maxHeight.value?.also { maxHeight { it } }
-                options.maxWidth.value?.also { maxWidth { it } }
+                options.value.width.value?.also { width { it } }
+                options.value.height.value?.also { height { it } }
+                options.value.maxHeight.value?.also { maxHeight { it } }
+                options.value.maxWidth.value?.also { maxWidth { it } }
 
-                if (options.height.value != null || options.width.value != null) {
+                if (options.value.height.value != null || options.value.width.value != null) {
                     overflow { OverflowValues.auto }
                 }
 

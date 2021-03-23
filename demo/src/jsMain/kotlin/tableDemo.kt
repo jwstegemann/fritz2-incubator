@@ -1397,7 +1397,6 @@ fun RenderContext.tableDemo() {
                     }
 
 
-                    /*
                     // Wieso ist das nicht unter options?
                     // oder noch besser unter selection
                     selectedRowStyle {
@@ -1410,7 +1409,6 @@ fun RenderContext.tableDemo() {
                         }
                     }
 
-                     */
 
                     columns {
                         column("ID") {
