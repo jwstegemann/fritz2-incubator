@@ -1,4 +1,5 @@
 import dev.fritz2.binding.RootStore
+import dev.fritz2.binding.SubStore
 import dev.fritz2.binding.storeOf
 import dev.fritz2.components.*
 import dev.fritz2.dom.html.Div
@@ -8,14 +9,15 @@ import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.buildLens
 import dev.fritz2.lenses.format
 import dev.fritz2.styling.params.styled
-import dev.fritz2.styling.staticStyle
-import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
 import model.Address
 import model.Person
+import dev.fritz2.components.datatable.*
+import dev.fritz2.dom.html.Tr
+import dev.fritz2.styling.theme.important
+import kotlinx.coroutines.flow.combine
 
 val extremlyLargeFakePersonSet = """
 Christof Wesack;2016-12-25;wojciechwohlgemut@gnatz.com;05697 866667;+49(0)9219016408;Zimmerstr.;5;20803;Erkelenz
@@ -1146,11 +1148,11 @@ Erika Bolnbach-Bolnbach;2017-08-06;atzleriwona@web.de;0807034829;(07241) 001911;
 Yvette Gröttner B.Sc.;1976-02-08;amies@stiebitz.de;+49(0)5060 233940;+49(0)2684182702;Krokergasse;701;05497;Hainichen
 """.trimIndent()
 
-fun parseCsvPersons(fakeData: String ) = fakeData.split('\n').withIndex().map { (index, data) ->
+fun parseCsvPersons(fakeData: String, offset: Int = 0) = fakeData.split('\n').withIndex().map { (index, data) ->
     val fields = data.split(';')
     Person(
         uniqueId(),
-        index,
+        index + offset,
         fields[0],
         LocalDate.parse(fields[1]),
         fields[2],
@@ -1185,7 +1187,7 @@ val jobSet = listOf(
 
 val fakeData = mapOf(
     false to parseCsvPersons(veryLargeFakePersonSet).take(40),
-    true to parseCsvPersons(extremlyLargeFakePersonSet).take(250)
+    true to parseCsvPersons(extremlyLargeFakePersonSet, 41).take(250)
 )
 
 
@@ -1235,235 +1237,295 @@ object Formats {
 fun RenderContext.tableDemo() {
     toggle.data.map { fakeData[it]!! } handledBy TableStore.update
 
+    val selectionModeStore = storeOf(SelectionMode.Single)
+    val doubleClickStore = storeOf(Person())
+    val singleSelectionStore = storeOf<Person?>(null)
+    val multiSelectionStore = storeOf(emptyList<Person>())
 
 
-        val selectedStore = object : RootStore<List<Person>>(emptyList()) {
 
-            val add = handle<Person> { list, selected ->
-                if (!list.contains(selected)) {
-                    list + selected
-                } else {
-                    list
-                }
-            }
+    appFrame {
+        brand {
+            icon({
+                color { gray300 }
+                size { "2rem" }
+                margins { right { normal } }
+            }) { fromTheme { fritz2 } }
+            (::span.styled {
+                fontWeight { semiBold }
+                fontSize { large }
+            }) { +"Table Demo" }
+        }
 
-            val toggle = handle<Person> { list, item ->
-                console.info(item)
-                if (!list.contains(item)) {
-                    list + item
-                } else {
-                    list.filter { it != item }
-                }
-            }
+        header {
+            (::span.styled {
+                fontWeight { semiBold }
+                fontSize { large }
+            }) { +"DataTables are important" }
+        }
 
-            val clearList = handle {
-                emptyList()
-            }
+        actions {
 
         }
 
-        val doubleClickStore = object : RootStore<Person>(Person()) {
-
+        nav {
+            navLink { text("toggle data") }.map { !toggle.current } handledBy toggle.update
+            SelectionMode.values().map { mode ->
+                navLink { text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
+            }
         }
+        main {
+            lineUp {
+                items {
 
-        val selectionModeStore = storeOf(TableComponent.Companion.SelectionMode.NONE)
-        val newSelectedStore = storeOf(Person())
-        val multipleSelectedStore = storeOf(emptyList<Person>())
+                    /*
+                selectionModeStore.data.render {
+                    when (it) {
+                        SelectionMode.Single -> {
 
+                     */
+                    stackUp {
+                        items {
 
-
-        appFrame {
-            brand {
-                icon({
-                    color { lighterGray }
-                    size { "2rem" }
-                    margins { right { normal } }
-                }) { fromTheme { fritz2 } }
-                (::span.styled{
-                    fontWeight { semiBold }
-                    fontSize { large }
-                }) { +"Table Demo" }
-            }
-
-            header {
-                (::span.styled {
-                    fontWeight { semiBold }
-                    fontSize { large }
-                }) { +"DataTables are important"}
-            }
-
-            actions {
-
-            }
-
-            nav {
-                navLink { text("toggle data") }.map { !toggle.current } handledBy toggle.update
-                TableComponent.Companion.SelectionMode.values().map { mode ->
-                    navLink { text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
-                }
-            }
-            main {
-                selectedStore.data.render { list ->
-                    paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
-                }
-
-                doubleClickStore.data.render { p ->
-                    if( p.fullName.isNotEmpty() ) {
-                        paragraph { +"DoubleClick Person ${p.id} - ${p.fullName}" }
-                    } else {
-                        paragraph { +"Use dbClick to get the Row" }
+                            h2 { +"Single Selection" }
+                            singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
+                                .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
+                            ul {
+                                li { singleSelectionStore.data.map { it?.fullName }.asText() }
+                            }
+                        }
                     }
-                }
-                ul {
-                    newSelectedStore.data.render { item ->
-                        li { +item.fullName }
-                    }
-                }
-                ul {
-                    multipleSelectedStore.data.renderEach { item ->
-                        li { +item.fullName }
-                    }
-                }
+                    /*
+                        }
+                        SelectionMode.Multi -> {
 
-                TableComponent.Companion.SelectionMode.values().map { mode ->
-                    clickButton({
-                        tooltip(mode.toString()){right}()
-                    }) {
-                        variant { link }
-                        text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
-                }
+                     */
+                    stackUp {
+                        items {
 
-                selectionModeStore.data.render { selectionMode ->
-                    dataTable(rowIdProvider = Person::id) {
-                        caption(selectionModeStore.data.map { mode ->
-                            "Table with \"${mode.name}\" Selection Mode "
+                            h2 { +"Multi Selection" }
+                            multiSelectionStore.data.render { list ->
+                                paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
+                            }
+
+                            ul {
+                                multiSelectionStore.data.renderEach {
+                                    li { +it.fullName }
+                                }
+                            }
+                        }
+                    }
+                    /*
+                        }
+                        else -> {
+                        }
+                    }
+
+                }
+                     */
+
+                }
+            }
+
+            doubleClickStore.data.render { p ->
+                if (p.fullName.isNotEmpty()) {
+                    paragraph { +"DoubleClick Person ${p.id} - ${p.fullName}" }
+                } else {
+                    paragraph { +"Use dbClick to get the Row" }
+                }
+            }
+
+            selectionModeStore.data.render { selectionMode ->
+                dataTable(dataStore = TableStore, rowIdProvider = Person::id) {
+                    selection {
+                        when (selectionMode) {
+                            SelectionMode.Single -> {
+                                single {
+                                    row(singleSelectionStore)
+                                    //selected(singleSelectionStore.data)
+                                }
+                            }
+                            SelectionMode.Multi -> {
+                                multi {
+                                    rows(multiSelectionStore)
+                                    //selected(multiSelectionStore.data)
+                                }
+                            }
+                            else -> Unit
+                        }
+                        // ohne -> weder single noch multi setzen!
+
+                        // Ohne Strategy -> default wird je nach Mode gesetzt!
+                        // (Ohne Mode wird immer NoSelection gewählt)
+                        //strategy { checkbox }
+                        //strategy { click }
+                        // Custom strategy: Use both variants
+                        /*
+                        strategy(object : SelectionStrategy<Person, Int> {
+                            private val checkBoxStrategy = SelectionByCheckBox<Person, Int>()
+                            private val clickStrategy = SelectionByClick<Person, Int>()
+
+                            override fun manageSelectionByExtraColumn(component: TableComponent<Person, Int>) {
+                                checkBoxStrategy.manageSelectionByExtraColumn(component)
+                            }
+
+                            override fun manageSelectionByRowEvents(
+                                component: TableComponent<Person, Int>,
+                                rowStore: SubStore<List<Person>, List<Person>, Person>,
+                                renderContext: Tr
+                            ) {
+                                clickStrategy.manageSelectionByRowEvents(component, rowStore, renderContext)
+                            }
                         })
-                        tableStore(TableStore)
-                        selectedRows(selectedStore.data)
-                        selectionMode(selectionMode)
 
-                        events {
-                            selectedRows handledBy selectedStore.update
-                            selectedRow handledBy selectedStore.toggle
-                            dbClicks handledBy doubleClickStore.update
-                        }
+                         */
+                    }
 
-                        selectedRowStyle {
-                            children("td") {
-                                background {
-                                    color {
-                                        info.important
-                                    }
-                                }
+                    events {
+                        /*
+                        when (selectionMode) {
+                            SelectionMode.Single -> {
+                                selectedRow handledBy singleSelectionStore.update
+                            }
+                            SelectionMode.Multi -> {
+                                selectedRows handledBy multiSelectionStore.update
                             }
                         }
 
+                         */
+                        dbClicks handledBy doubleClickStore.update
+                    }
 
-                        columns {
-                            column("ID") {
-                                lens { personIdLens + Formats.intFormat }
-                                width { minmax { "80px" } }
+                    options {
+                        //fixedHeader(false)
+                        height("auto")
+                        maxHeight("70vh")
+                        sorting {
+                            renderer(object : SortingRenderer {
+                                private val delegate = SingleArrowSortingRenderer()
+                                override fun renderSortingActive(context: Div, sorting: Sorting) {
+                                    console.log("I render it my way!")
+                                    delegate.renderSortingActive(context, sorting)
+                                }
 
-                            }
-                            column("Name") {
-                                lens { fullNameLens }
-                                width { minmax { "2fr" } }
-                            }
-                            column("Job") {
-                                content { renderContext, _, _ ->
-                                    renderContext.apply {
-                                        select {
-                                            jobs.data.renderEach {
-                                                option {
-                                                    value(it)
-                                                    +it
-                                                }
-                                            }
-                                        }
-                                    }
+                                override fun renderSortingLost(context: Div) {
+                                    delegate.renderSortingLost(context)
                                 }
-                            }
-                            column("Birthday") {
-                                lens { birthdayLens + Formats.dateFormat }
-                                width { minmax { "120px" } }
-                                styling {
-                                    color { danger }
-                                }
-                                sortBy {
-                                    compareBy { person ->
-                                        person.birthday
-                                    }
-                                }
-                            }
-                            column {
-                                // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
-                                // the data from the table itself!
-                                // ``header`` oder ``head``?
-                                header {
-                                    title { "Address" }
-                                    styling {
-                                        background { color { "purple" } }
-                                        fontWeight { bold }
-                                    }
-                                    content { config ->
-                                        +config.headerName
+
+                                override fun renderSortingDisabled(context: Div) {
+                                    context.apply {
                                         icon { fromTheme { fritz2 } }
                                     }
                                 }
-                                width { max { "2fr" } }
-                                content { ctx, _, rowStore ->
-                                    rowStore?.let { person ->
-                                        val street = person.sub(personAddressLens + streetLens)
-                                        val houseNumber = person.sub(personAddressLens + houseNumberLens)
-                                        val postalCode = person.sub(personAddressLens + postalCodeLens)
-                                        val city = person.sub(personAddressLens + cityLens)
-                                        ctx.apply {
-                                            street.data.combine(houseNumber.data) { s, h ->
-                                                "$s $h"
-                                            }.combine(postalCode.data) { a, p ->
-                                                "$a ,$p"
-                                            }.combine(city.data) { a, c ->
-                                                "$a $c"
-                                            }.asText()
+                            })
+                        }
+                    }
+
+
+                    // Wieso ist das nicht unter options?
+                    // oder noch besser unter selection
+                    selectedRowStyle {
+                        children("td") {
+                            background {
+                                color {
+                                    info.important
+                                }
+                            }
+                        }
+                    }
+
+
+                    columns {
+                        column("ID") {
+                            lens(personIdLens + Formats.intFormat)
+                            width { minmax("80px") }
+
+                        }
+                        column("Name") {
+                            lens(fullNameLens)
+                            content { _, rowStore ->
+                                inputField(store = rowStore!!.sub(fullNameLens)) {
+                                    size { small }
+                                }
+                            }
+                            width { minmax("2fr") }
+                        }
+                        column("Job") {
+                            content { _, _ ->
+                                select {
+                                    jobs.data.renderEach {
+                                        option {
+                                            value(it)
+                                            +it
                                         }
                                     }
                                 }
-                                sortBy {
-                                    compareBy<Person> { person ->
-                                        person.address.city
-                                    }.thenBy { person ->
-                                        person.address.street
-                                    }
+                            }
+                        }
+                        column("Birthday") {
+                            lens(birthdayLens + Formats.dateFormat)
+                            width { minmax("120px") }
+                            styling {
+                                color { danger }
+                            }
+                            sortBy(compareBy { person ->
+                                person.birthday
+                            })
+                        }
+                        column {
+                            // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
+                            // the data from the table itself!
+                            // ``header`` oder ``head``?
+                            header {
+                                title("Address")
+                                styling {
+                                    background { color { "purple" } }
+                                    fontWeight { bold }
+                                }
+                                content { config ->
+                                    +config.headerName
+                                    icon { fromTheme { fritz2 } }
                                 }
                             }
-                            // IDEA: Grouping of columns for saving column space
-                            // No semantic meaning, but visibility improvements
-                            //group("Contact") {
-                            column("Phone") {
-                                lens { phoneLens }
-                                // TODO: Ugly -> Enum must be receiver; but how?
-                                sorting { TableComponent.Companion.Sorting.DISABLED }
+                            width { max("2fr") }
+                            content { _, rowStore ->
+                                rowStore?.let { person ->
+                                    val street = person.sub(personAddressLens + streetLens)
+                                    val houseNumber = person.sub(personAddressLens + houseNumberLens)
+                                    val postalCode = person.sub(personAddressLens + postalCodeLens)
+                                    val city = person.sub(personAddressLens + cityLens)
+                                    street.data.combine(houseNumber.data) { s, h ->
+                                        "$s $h"
+                                    }.combine(postalCode.data) { a, p ->
+                                        "$a ,$p"
+                                    }.combine(city.data) { a, c ->
+                                        "$a $c"
+                                    }.asText()
+                                }
                             }
-                            column("Mobile") { lens { mobileLens } }
-                            column("E-Mail") {
-                                lens { emailLens }
-                                width { minmax { "2fr" } }
-                            }
-                            //}
+                            sortBy(compareBy<Person> { person ->
+                                person.address.city
+                            }.thenBy { person ->
+                                person.address.street
+                            })
                         }
-
-                        sorter { SimpleSorter() }
-                        // TODO: Make nicer API for predefined sorting renderer?
-                        // like "variants" for styling?
-                        //sortingRenderer { TogglingSymbolSortingRenderer() }
-                        options {
-                            height("auto")
-                            maxHeight("70vh")
+                        // IDEA: Grouping of columns for saving column space
+                        // No semantic meaning, but visibility improvements
+                        //group("Contact") {
+                        column("Phone") {
+                            lens(phoneLens)
+                            sorting { disabled }
                         }
-
+                        column("Mobile") { lens(mobileLens) }
+                        column("E-Mail") {
+                            lens(emailLens)
+                            width { minmax("2fr") }
+                        }
+                        //}
                     }
                 }
             }
         }
+    }
 
 }
