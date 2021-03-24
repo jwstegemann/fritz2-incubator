@@ -232,16 +232,34 @@ class StateStore(private val sortingPlanReducer: SortingPlanReducer) : RootStore
 }
 
 
-class RowSelectionStore<T> : MultiSelectionStore<T>() {
-    val selectRows = toggle
+class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<List<T>>(emptyList()) {
 
-    val selectRow = handleAndEmit<T?, T?> { _, new ->
-        emit(new)
-        if (new == null) {
+    val syncHandler = handle<List<T>> { old, allItems ->
+        old.map { oldItem -> allItems.firstOrNull { rowIdProvider(it) == rowIdProvider(oldItem) } ?: oldItem }
+    }
+
+    val selectRows = handleAndEmit<T, List<T>> { selectedRows, new ->
+        val newSelection = if (selectedRows.contains(new))
+            selectedRows - new
+        else {
+            val temp = selectedRows.map { if (rowIdProvider(it) == rowIdProvider(new)) new else it }
+            if (temp.any { rowIdProvider(it) == rowIdProvider(new) }) temp else temp + new
+        }
+        emit(newSelection)
+        newSelection
+    }
+
+    val selectRow = handle<T?> { old, new ->
+        val newSelection = if (new == null || old.firstOrNull() == new) {
             emptyList()
         } else {
             listOf(new)
         }
+        newSelection
+    }
+
+    val updateRow = handle<T?> { _, new ->
+        if (new == null) emptyList() else listOf(new)
     }
 
     val dbClickedRow = handleAndEmit<T, T> { selectedRows, new ->
@@ -295,9 +313,13 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
                         }
                     )
                     events {
-                        clicks.events.map {
-                            rowStore.current
-                        } handledBy component.selectionStore.selectRows
+                        when (component.selection.value.selectionMode) {
+                            SelectionMode.Single ->
+                                clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRow
+                            SelectionMode.Multi ->
+                                clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRows
+                            else -> Unit
+                        }
                     }
                 }
             }
@@ -316,7 +338,6 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
                         }
                     )
                     events {
-
                         changes.states().map { selected ->
                             if (selected) {
                                 component.dataStore.current
@@ -324,7 +345,6 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
                                 emptyList()
                             }
                         } handledBy component.selectionStore.update
-
                     }
                 }
             }
@@ -619,15 +639,15 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         selectedRowStyleClass(staticStyle("customSelectedRow") { value() })
     }
 
-    val selectionStore: RowSelectionStore<T> = RowSelectionStore()
+    val selectionStore: RowSelectionStore<T, I> = RowSelectionStore(rowIdProvider)
 
-    class EventsContext<T>(rowSelectionStore: RowSelectionStore<T>) {
+    class EventsContext<T, I>(rowSelectionStore: RowSelectionStore<T, I>) {
         val selectedRows: Flow<List<T>> = rowSelectionStore.data
-        val selectedRow: Flow<T?> = rowSelectionStore.selectRow
+        val selectedRow: Flow<T?> = rowSelectionStore.data.map { it.firstOrNull() }
         val dbClicks: Flow<T> = rowSelectionStore.dbClickedRow
     }
 
-    fun events(expr: EventsContext<T>.() -> Unit) {
+    fun events(expr: EventsContext<T, I>.() -> Unit) {
         EventsContext(selectionStore).expr()
     }
 
@@ -747,11 +767,13 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         )
 
         context.apply {
+            dataStore.data handledBy selectionStore.syncHandler
+
             // preset selection via external store or flow
             when (selection.value.selectionMode) {
                 SelectionMode.Single ->
                     (selection.value.single?.row?.value?.data
-                        ?: selection.value.single?.selected!!.values) handledBy selectionStore.selectRow
+                        ?: selection.value.single?.selected!!.values) handledBy selectionStore.updateRow
                 SelectionMode.Multi -> (selection.value.multi?.rows?.value?.data
                     ?: selection.value.multi?.selected!!.values) handledBy selectionStore.update
                 else -> Unit
