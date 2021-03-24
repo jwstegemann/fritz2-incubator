@@ -172,7 +172,6 @@ class SelectionStore<T> : RootStore<List<T>>(emptyList()) {
         emit(new)
         selectedRows
     }
-
 }
 
 /**

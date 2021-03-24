@@ -1325,6 +1325,14 @@ fun RenderContext.tableDemo() {
                     }
                 }
 
+                TableComponent.Companion.SelectionMode.values().map { mode ->
+                    clickButton({
+                        tooltip(mode.toString()){right}()
+                    }) {
+                        variant { link }
+                        text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
+                }
+
                 selectionModeStore.data.render { selectionMode ->
                     dataTable(rowIdProvider = Person::id) {
                         caption(selectionModeStore.data.map { mode ->
