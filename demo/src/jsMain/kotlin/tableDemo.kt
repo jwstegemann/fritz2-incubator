@@ -1239,10 +1239,8 @@ fun RenderContext.tableDemo() {
 
     val selectionModeStore = storeOf(SelectionMode.Single)
     val doubleClickStore = storeOf(Person())
-    val singleSelectionStore = storeOf<Person?>(null)
-    val multiSelectionStore = storeOf(emptyList<Person>())
-
-
+    val singleSelectionStore = storeOf<Person?>(TableStore.current.drop(3).first())
+    val multiSelectionStore = storeOf(TableStore.current.drop(2).take(3))
 
     appFrame {
         brand {
@@ -1358,7 +1356,7 @@ fun RenderContext.tableDemo() {
                         // Ohne Strategy -> default wird je nach Mode gesetzt!
                         // (Ohne Mode wird immer NoSelection gewählt)
                         //strategy { checkbox }
-                        //strategy { click }
+                        strategy { click }
                         // Custom strategy: Use both variants
                         /*
                         strategy(object : SelectionStrategy<Person, Int> {
