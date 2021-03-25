@@ -234,6 +234,8 @@ class StateStore(private val sortingPlanReducer: SortingPlanReducer) : RootStore
 
 class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<List<T>>(emptyList()) {
 
+    val selectedData = data.drop(1)
+
     val syncHandler = handle<List<T>> { old, allItems ->
         old.map { oldItem -> allItems.firstOrNull { rowIdProvider(it) == rowIdProvider(oldItem) } ?: oldItem }
     }
@@ -642,8 +644,8 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
     val selectionStore: RowSelectionStore<T, I> = RowSelectionStore(rowIdProvider)
 
     class EventsContext<T, I>(rowSelectionStore: RowSelectionStore<T, I>) {
-        val selectedRows: Flow<List<T>> = rowSelectionStore.data
-        val selectedRow: Flow<T?> = rowSelectionStore.data.map { it.firstOrNull() }
+        val selectedRows: Flow<List<T>> = rowSelectionStore.selectedData
+        val selectedRow: Flow<T?> = rowSelectionStore.selectedData.map { it.firstOrNull() }
         val dbClicks: Flow<T> = rowSelectionStore.dbClickedRow
     }
 

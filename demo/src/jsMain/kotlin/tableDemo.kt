@@ -1239,7 +1239,7 @@ fun RenderContext.menuHeader(title: String, withRuler: Boolean = true) {
             horizontal { normal }
         }
     }) {
-        if(withRuler) {
+        if (withRuler) {
             (::hr.styled { margins { vertical { small } } }) {}
         }
         h3 { +title }
@@ -1251,8 +1251,10 @@ fun RenderContext.tableDemo() {
     toggle.data.map { fakeData[it]!! } handledBy TableStore.update
 
     val selectionStrategies = listOf("smart", "click", "checkBox", "custom")
-    val selectionModeStore = storeOf(SelectionMode.Single)
     val selectionStrategyStore = storeOf(selectionStrategies.first())
+    val selectionSources = listOf("store", "flow")
+    val selectionSourceStore = storeOf(selectionSources.first())
+    val selectionModeStore = storeOf(SelectionMode.Single)
     val doubleClickStore = storeOf(Person())
     val singleSelectionStore = storeOf<Person?>(TableStore.current.drop(3).first())
     val multiSelectionStore = storeOf(TableStore.current.drop(2).take(3))
@@ -1297,6 +1299,13 @@ fun RenderContext.tableDemo() {
                     text(strategy)
                     active(selectionStrategyStore.data.map { it == strategy })
                 }.events.map { strategy } handledBy selectionStrategyStore.update
+            }
+            menuHeader("Selection Source")
+            selectionSources.map { source ->
+                navLink {
+                    text(source)
+                    active(selectionSourceStore.data.map { it == source })
+                }.events.map { source } handledBy selectionSourceStore.update
             }
             stackUp({
                 margin { normal }
@@ -1383,30 +1392,37 @@ fun RenderContext.tableDemo() {
             }
 
         }
+        data class TableParams(val mode: SelectionMode, val strategy: String, val source: String = "")
         main {
-
             selectionModeStore.data.combine(selectionStrategyStore.data) { mode, strategy ->
-                mode to strategy
-            }.render { (selectionMode, selectionStrategy) ->
+                TableParams(mode, strategy)
+            }.combine(selectionSourceStore.data) { params, source ->
+                params.copy(source = source)
+            }.render { (selectionMode, selectionStrategy, selectionSource) ->
                 dataTable(dataStore = TableStore, rowIdProvider = Person::id) {
                     selection {
                         when (selectionMode) {
                             SelectionMode.Single -> {
                                 single {
-                                    row(singleSelectionStore)
-                                    //selected(singleSelectionStore.data)
+                                    if (selectionSource == "flow") {
+                                        selected(singleSelectionStore.data)
+                                    } else {
+                                        row(singleSelectionStore)
+                                    }
                                 }
                             }
                             SelectionMode.Multi -> {
                                 multi {
-                                    rows(multiSelectionStore)
-                                    //selected(multiSelectionStore.data)
+                                    if (selectionSource == "flow") {
+                                        selected(multiSelectionStore.data)
+                                    } else {
+                                        rows(multiSelectionStore)
+                                    }
                                 }
                             }
                             else -> Unit
                         }
                         // ohne -> weder single noch multi setzen!
-
                         // Ohne Strategy -> default wird je nach Mode gesetzt!
                         // (Ohne Mode wird immer NoSelection gewählt)
                         when (selectionStrategy) {
@@ -1432,17 +1448,17 @@ fun RenderContext.tableDemo() {
                     }
 
                     events {
-                        /*
-                        when (selectionMode) {
-                            SelectionMode.Single -> {
-                                selectedRow handledBy singleSelectionStore.update
-                            }
-                            SelectionMode.Multi -> {
-                                selectedRows handledBy multiSelectionStore.update
+                        if (selectionSource == "flow") {
+                            when (selectionMode) {
+                                SelectionMode.Single -> {
+                                    selectedRow handledBy singleSelectionStore.update
+                                }
+                                SelectionMode.Multi -> {
+                                    selectedRows handledBy multiSelectionStore.update
+                                }
+                                else -> Unit
                             }
                         }
-
-                         */
                         dbClicks handledBy doubleClickStore.update
                     }
 
