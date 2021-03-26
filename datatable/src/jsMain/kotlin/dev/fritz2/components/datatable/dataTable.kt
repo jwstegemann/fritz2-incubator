@@ -693,7 +693,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             }
         }
 
-        internal val selectionMode by lazy {
+        val selectionMode by lazy {
             when {
                 single != null -> {
                     SelectionMode.Single
