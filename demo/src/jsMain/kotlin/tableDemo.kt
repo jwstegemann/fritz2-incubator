@@ -1233,10 +1233,27 @@ object Formats {
     )
 }
 
+fun RenderContext.menuHeader(title: String, withRuler: Boolean = true) {
+    box({
+        margins {
+            horizontal { normal }
+        }
+    }) {
+        if (withRuler) {
+            (::hr.styled { margins { vertical { small } } }) {}
+        }
+        h3 { +title }
+    }
+}
+
 @ExperimentalCoroutinesApi
 fun RenderContext.tableDemo() {
     toggle.data.map { fakeData[it]!! } handledBy TableStore.update
 
+    val selectionStrategies = listOf("smart", "click", "checkBox", "custom")
+    val selectionStrategyStore = storeOf(selectionStrategies.first())
+    val selectionSources = listOf("store", "flow")
+    val selectionSourceStore = storeOf(selectionSources.first())
     val selectionModeStore = storeOf(SelectionMode.Single)
     val doubleClickStore = storeOf(Person())
     val singleSelectionStore = storeOf<Person?>(TableStore.current.drop(3).first())
@@ -1267,130 +1284,181 @@ fun RenderContext.tableDemo() {
         }
 
         nav {
+            menuHeader("Data", false)
             navLink { text("toggle data") }.map { !toggle.current } handledBy toggle.update
+            menuHeader("Selection Mode")
             SelectionMode.values().map { mode ->
-                navLink { text(mode.toString()) }.events.map { mode } handledBy selectionModeStore.update
+                navLink {
+                    text(mode.toString())
+                    active(selectionModeStore.data.map { it.name == mode.name })
+                }.events.map { mode } handledBy selectionModeStore.update
             }
-        }
-        main {
-            lineUp {
+            menuHeader("Selection Strategy")
+            selectionStrategies.map { strategy ->
+                navLink {
+                    text(strategy)
+                    active(selectionStrategyStore.data.map { it == strategy })
+                }.events.map { strategy } handledBy selectionStrategyStore.update
+            }
+            menuHeader("Selection Source")
+            selectionSources.map { source ->
+                navLink {
+                    text(source)
+                    active(selectionSourceStore.data.map { it == source })
+                }.events.map { source } handledBy selectionSourceStore.update
+            }
+            stackUp({
+                margin { normal }
+            }) {
                 items {
-
-                    /*
-                selectionModeStore.data.render {
-                    when (it) {
-                        SelectionMode.Single -> {
-
-                     */
                     stackUp {
                         items {
-
-                            h2 { +"Single Selection" }
-                            singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
-                                .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
-                            ul {
-                                li { singleSelectionStore.data.map { it?.fullName }.asText() }
+                            lineUp({
+                                justifyContent { center }
+                            }) {
+                                items {
+                                    clickButton {
+                                        size { small }
+                                        color { primary.baseContrast }
+                                        variant { outline }
+                                        text("clear")
+                                    }.map { Person() } handledBy doubleClickStore.update
+                                    h2 { +"Double Click Selection" }
+                                }
                             }
-                        }
-                    }
-                    /*
-                        }
-                        SelectionMode.Multi -> {
-
-                     */
-                    stackUp {
-                        items {
-
-                            h2 { +"Multi Selection" }
-                            multiSelectionStore.data.render { list ->
-                                paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
-                            }
-
-                            ul {
-                                multiSelectionStore.data.renderEach {
-                                    li { +it.fullName }
+                            doubleClickStore.data.render { p ->
+                                if (p.fullName.isNotEmpty()) {
+                                    paragraph { +"Person ${p.id} - ${p.fullName}" }
+                                } else {
+                                    paragraph { +"Use dbClick to get the Row" }
                                 }
                             }
                         }
                     }
-                    /*
-                        }
-                        else -> {
+                    selectionModeStore.data.render {
+                        when (it) {
+                            SelectionMode.Single -> stackUp {
+                                items {
+                                    lineUp({
+                                        justifyContent { center }
+                                    }) {
+                                        items {
+                                            clickButton {
+                                                size { small }
+                                                color { primary.baseContrast }
+                                                variant { outline }
+                                                text("clear")
+                                            }.map { null } handledBy singleSelectionStore.update
+                                            h2 { +"Single Selection" }
+                                        }
+                                    }
+                                    singleSelectionStore.data.map { if (it == null) "keine" else "eine" }
+                                        .render { paragraph { +"Aktuell ist $it Zeile ausgewählt!" } }
+                                    ul {
+                                        singleSelectionStore.data.render { if (it != null) li { +it.fullName } }
+                                    }
+                                }
+                            }
+                            SelectionMode.Multi -> stackUp {
+                                items {
+                                    lineUp({
+                                        justifyContent { center }
+                                    }) {
+                                        items {
+                                            clickButton {
+                                                size { small }
+                                                color { primary.baseContrast }
+                                                variant { outline }
+                                                text("clear")
+                                            }.map { emptyList<Person>() } handledBy multiSelectionStore.update
+                                            h2 { +"Multi Selection" }
+                                        }
+                                    }
+                                    multiSelectionStore.data.render { list ->
+                                        paragraph { +"Aktuell sind ${list.size} Zeilen ausgewählt!" }
+                                    }
+
+                                    ul {
+                                        multiSelectionStore.data.renderEach {
+                                            li { +it.fullName }
+                                        }
+                                    }
+                                }
+                            }
+                            else -> Unit
                         }
                     }
-
-                }
-                     */
-
                 }
             }
 
-            doubleClickStore.data.render { p ->
-                if (p.fullName.isNotEmpty()) {
-                    paragraph { +"DoubleClick Person ${p.id} - ${p.fullName}" }
-                } else {
-                    paragraph { +"Use dbClick to get the Row" }
-                }
-            }
-
-            selectionModeStore.data.render { selectionMode ->
+        }
+        data class TableParams(val mode: SelectionMode, val strategy: String, val source: String = "")
+        main {
+            selectionModeStore.data.combine(selectionStrategyStore.data) { mode, strategy ->
+                TableParams(mode, strategy)
+            }.combine(selectionSourceStore.data) { params, source ->
+                params.copy(source = source)
+            }.render { (selectionMode, selectionStrategy, selectionSource) ->
                 dataTable(dataStore = TableStore, rowIdProvider = Person::id) {
                     selection {
                         when (selectionMode) {
                             SelectionMode.Single -> {
                                 single {
-                                    row(singleSelectionStore)
-                                    //selected(singleSelectionStore.data)
+                                    if (selectionSource == "flow") {
+                                        selected(singleSelectionStore.data)
+                                    } else {
+                                        row(singleSelectionStore)
+                                    }
                                 }
                             }
                             SelectionMode.Multi -> {
                                 multi {
-                                    rows(multiSelectionStore)
-                                    //selected(multiSelectionStore.data)
+                                    if (selectionSource == "flow") {
+                                        selected(multiSelectionStore.data)
+                                    } else {
+                                        rows(multiSelectionStore)
+                                    }
                                 }
                             }
                             else -> Unit
                         }
                         // ohne -> weder single noch multi setzen!
-
                         // Ohne Strategy -> default wird je nach Mode gesetzt!
                         // (Ohne Mode wird immer NoSelection gewählt)
-                        //strategy { checkbox }
-                        strategy { click }
-                        // Custom strategy: Use both variants
-                        /*
-                        strategy(object : SelectionStrategy<Person, Int> {
-                            private val checkBoxStrategy = SelectionByCheckBox<Person, Int>()
-                            private val clickStrategy = SelectionByClick<Person, Int>()
+                        when (selectionStrategy) {
+                            "click" -> strategy { click }
+                            "checkBox" -> strategy { checkbox }
+                            "custom" -> strategy(object : SelectionStrategy<Person, Int> {
+                                private val checkBoxStrategy = SelectionByCheckBox<Person, Int>()
+                                private val clickStrategy = SelectionByClick<Person, Int>()
 
-                            override fun manageSelectionByExtraColumn(component: TableComponent<Person, Int>) {
-                                checkBoxStrategy.manageSelectionByExtraColumn(component)
-                            }
+                                override fun manageSelectionByExtraColumn(component: TableComponent<Person, Int>) {
+                                    checkBoxStrategy.manageSelectionByExtraColumn(component)
+                                }
 
-                            override fun manageSelectionByRowEvents(
-                                component: TableComponent<Person, Int>,
-                                rowStore: SubStore<List<Person>, List<Person>, Person>,
-                                renderContext: Tr
-                            ) {
-                                clickStrategy.manageSelectionByRowEvents(component, rowStore, renderContext)
-                            }
-                        })
-
-                         */
+                                override fun manageSelectionByRowEvents(
+                                    component: TableComponent<Person, Int>,
+                                    rowStore: SubStore<List<Person>, List<Person>, Person>,
+                                    renderContext: Tr
+                                ) {
+                                    clickStrategy.manageSelectionByRowEvents(component, rowStore, renderContext)
+                                }
+                            })
+                        }
                     }
 
                     events {
-                        /*
-                        when (selectionMode) {
-                            SelectionMode.Single -> {
-                                selectedRow handledBy singleSelectionStore.update
-                            }
-                            SelectionMode.Multi -> {
-                                selectedRows handledBy multiSelectionStore.update
+                        if (selectionSource == "flow") {
+                            when (selectionMode) {
+                                SelectionMode.Single -> {
+                                    selectedRow handledBy singleSelectionStore.update
+                                }
+                                SelectionMode.Multi -> {
+                                    selectedRows handledBy multiSelectionStore.update
+                                }
+                                else -> Unit
                             }
                         }
-
-                         */
                         dbClicks handledBy doubleClickStore.update
                     }
 
@@ -1398,6 +1466,7 @@ fun RenderContext.tableDemo() {
                         //fixedHeader(false)
                         height("auto")
                         maxHeight("70vh")
+                        /*
                         sorting {
                             renderer(object : SortingRenderer {
                                 private val delegate = SingleArrowSortingRenderer()
@@ -1417,11 +1486,13 @@ fun RenderContext.tableDemo() {
                                 }
                             })
                         }
+                         */
                     }
 
 
                     // Wieso ist das nicht unter options?
                     // oder noch besser unter selection
+                    /*
                     selectedRowStyle {
                         children("td") {
                             background {
@@ -1431,6 +1502,8 @@ fun RenderContext.tableDemo() {
                             }
                         }
                     }
+
+                     */
 
 
                     columns {
@@ -1477,12 +1550,12 @@ fun RenderContext.tableDemo() {
                             header {
                                 title("Address")
                                 styling {
-                                    background { color { "purple" } }
+                                    background { color { primary.highlight } }
+                                    color { primary.highlightContrast }
                                     fontWeight { bold }
                                 }
                                 content { config ->
                                     +config.headerName
-                                    icon { fromTheme { fritz2 } }
                                 }
                             }
                             width { max("2fr") }
