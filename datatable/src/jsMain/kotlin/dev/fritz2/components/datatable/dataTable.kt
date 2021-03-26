@@ -420,9 +420,8 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             prefix,
             """
                 display:grid;
-                min-width:100vw;
+                min-width:100%;
                 flex: 1;
-                display: grid;
                 border-collapse: collapse;
                 text-align: left;
                 
@@ -833,14 +832,14 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 //var main = ""
 
                 order.forEach { itemId ->
-                    this.columns.value[itemId]?.let {
-                        val min = it.minWidth ?: this.options.value.cellMinWidth.value
-                        val max = it.maxWidth ?: this.options.value.cellMaxWidth.value
+                    component.columns.value[itemId]?.let {
+                        val min = it.minWidth ?: component.options.value.cellMinWidth.value
+                        val max = it.maxWidth ?: component.options.value.cellMaxWidth.value
                         minmax += "\n" + if (min == max) {
                             max
                         } else {
                             if (!min.contains(Regex("px|%"))) {
-                                "minmax($this.defaultMinWidth, $max)"
+                                "minmax(${component.options.value.cellMinWidth.value}, $max)"
                             } else {
                                 "minmax($min, $max)"
                             }
@@ -898,6 +897,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                         top { "0" }
                     }
                 }
+                zIndex { "1" }
             }, baseClass, "$id-fixedHeader", "$prefix-fixedHeader") {}){
                 attr("style", gridCols)
                 renderTHead({}, this)

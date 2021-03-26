@@ -1,3 +1,5 @@
+import dev.fritz2.binding.RootStore
+import dev.fritz2.dom.Window
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.P
 import dev.fritz2.dom.html.RenderContext
