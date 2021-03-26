@@ -1446,7 +1446,7 @@ fun RenderContext.tableDemo() {
                                     size { small }
                                 }
                             }
-                            width { minmax("2fr") }
+                            width { min("10rem") }
                         }
                         column("Job") {
                             content { _, _ ->
@@ -1523,6 +1523,11 @@ fun RenderContext.tableDemo() {
                     }
                 }
             }
+
+            box {
+                +"FOOTER CONTENT OUTSIDE TABLE COMP"
+            }
+
         }
     }
 
