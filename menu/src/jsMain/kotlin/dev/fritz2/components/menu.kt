@@ -169,17 +169,31 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
         }
 
         private val staticDropdownContainerCss = staticStyle("menu-dropdown-container") {
-            position { relative { } }
+            position(
+                sm = { static },
+                md = { relative { } }
+            )
         }
 
         private val staticDropdownCss = staticStyle("menu-dropdown") {
-            position { absolute { } }
-            minWidth { minContent }
+            position(
+                sm = {
+                    absolute {
+                        left { "0px" }
+                    }
+                },
+                md = { absolute { } }
+            )
+            width(
+                sm = { "100%" },
+                md = { minContent }
+            )
             zIndex { "100" }
 
             background { color { neutral } }
             radius { "6px" }
             paddings { vertical { smaller } }
+            overflow { hidden }
 
             boxShadow { raised }
 

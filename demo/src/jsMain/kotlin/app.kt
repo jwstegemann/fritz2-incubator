@@ -115,7 +115,7 @@ fun main() {
 
     val enableDelayedFlow = flow<Boolean> {
         emit(false)
-        delay(5000L)
+        delay(4000)
         emit(true)
     }
 
@@ -147,12 +147,12 @@ fun main() {
                     subheader("Some more items:")
                     item {
                         icon { circleInformation }
-                        text("This item is disabled")
+                        text("Disabled")
                         enabled(false)
                     }
                     item {
                         icon { clock }
-                        text("This item is enabled after a couple of seconds")
+                        text("Enabled after a couple of seconds")
                         enabled(enableDelayedFlow)
                     }
                     divider()
