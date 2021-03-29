@@ -8,6 +8,8 @@ import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.params.BoxParams
 import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.theme.Theme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.w3c.dom.events.MouseEvent
 
@@ -111,6 +113,12 @@ fun main() {
         val increment = handle<MouseEvent> { current, _ -> current + 1 }
     }
 
+    val enableDelayedFlow = flow<Boolean> {
+        emit(false)
+        delay(5000L)
+        emit(true)
+    }
+
     render("#target") {
         h1 { +"fritz incubator - Demo" }
         div {
@@ -131,19 +139,21 @@ fun main() {
                 placement { bottom }
                 items {
                     item {
-                        leftIcon { add }
+                        icon { add }
                         text("Increment the click-counter")
                     } handledBy clickCounterStore.increment
 
                     divider()
                     subheader("Some more items:")
                     item {
-                        leftIcon { circleInformation }
-                        text("Info")
+                        icon { circleInformation }
+                        text("This item is disabled")
+                        enabled(false)
                     }
                     item {
-                        leftIcon { circleHelp }
-                        text("Help")
+                        icon { clock }
+                        text("This item is enabled after a couple of seconds")
+                        enabled(enableDelayedFlow)
                     }
                     divider()
                     subheader("Custom menu entries:")

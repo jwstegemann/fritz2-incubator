@@ -340,14 +340,19 @@ typealias MenuEntry = Component<Unit>
 open class MenuEntriesContext {
 
     class ItemContext {
-        val leftIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
+        val icon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
         val text = ComponentProperty("")
-        val rightIcon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
+
+        private var enabled = flowOf(true)
+        fun enabled(value: Boolean) = enabled(flowOf(value))
+        fun enabled(value: Flow<Boolean>) {
+            enabled = value
+        }
 
         fun build() = MenuItem(
-            leftIcon.value?.invoke((Theme().icons)),
+            icon.value?.invoke((Theme().icons)),
             text.value,
-            rightIcon.value?.invoke(Theme().icons)
+            enabled
         )
     }
 
@@ -404,25 +409,29 @@ open class MenuEntriesContext {
 
 
 data class MenuItem(
-    val leftIcon: IconDefinition?,
+    val icon: IconDefinition?,
     val text: String,
-    val rightIcon: IconDefinition?
+    val enabled: Flow<Boolean>
 ) : MenuEntry {
 
     companion object {
         private val staticMenuItemCss = staticStyle("menu-item") {
             width { "100%" }
-            paddings {
-                horizontal { small }
-                vertical { smaller }
-            }
             alignItems { center }
 
             radius { "6px" }
+        }
+
+        private val menuItemActiveStyle: Style<FlexParams> = {
             hover {
                 background { color { gray300 } }
                 css("filter: brightness(90%);")
             }
+        }
+
+        private val menuItemButtonStyle: Style<BasicParams> = {
+            fontWeight { normal }
+            color { Theme().fontColor }
         }
     }
 
@@ -443,28 +452,21 @@ data class MenuItem(
         prefix: String
     ) {
         context.apply {
-            flexBox(
-                styling = { this as BoxParams
-                    styling()
-                },
-                baseClass = baseClass + staticMenuEntryCss + staticMenuItemCss,
-                id = id,
-                prefix = prefix,
-            ) {
-                leftIcon?.let {
-                    icon { def(it) }
+            enabled.render { enabled ->
+                box(
+                    baseClass = staticMenuItemCss,
+                    styling = if (enabled) menuItemActiveStyle else ({ })
+                ) {
+                    clickButton(styling = menuItemButtonStyle) {
+                        icon?.let {
+                            icon { def(it) }
+                        }
+                        variant { ghost }
+                        text(text)
+                        disabled(!enabled)
+                    }.map { it } handledBy clickStore.forwardMouseEvents
                 }
-
-                (::label.styled {
-                    width { "100%" }
-                    margins { horizontal { tiny } }
-                    css("white-space: nowrap")
-                }) { +text }
-
-                rightIcon?.let {
-                    icon { def(it) }
-                }
-            }.clicks.events handledBy clickStore.forwardMouseEvents
+            }
         }
     }
 }
