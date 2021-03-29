@@ -67,7 +67,7 @@ val menuStyles = object : MenuStyles {
 private val staticMenuEntryCss = staticStyle("menu-entry") {
     width { "100%" }
     paddings {
-        horizontal { small }
+        horizontal { normal }
         vertical { smaller }
     }
     radius { "6px" }
@@ -215,7 +215,7 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
             variant { outline }
         }
     }
-    val items = ComponentProperty<(E.() -> Unit)?>(value = null)
+    val entries = ComponentProperty<(E.() -> Unit)?>(value = null)
     val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
 
     override fun render(
@@ -266,7 +266,7 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
             id = uniqueDropdownId,
             prefix = prefix
         ) {
-            items.value?.let {
+            entries.value?.let {
                 val entriesContext = entriesContextProvider().apply(it)
                 entriesContext.entries.forEach { entry ->
                     entry.render(context = this, styling = {}, StyleClass.None, id = null, prefix)

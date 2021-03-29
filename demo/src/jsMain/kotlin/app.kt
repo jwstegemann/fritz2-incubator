@@ -123,7 +123,7 @@ fun main() {
         h1 { +"fritz incubator - Demo" }
         div {
             menu {
-                items {
+                entries {
                     item {
                         text("Test")
                     }
@@ -137,7 +137,7 @@ fun main() {
                     }
                 }
                 placement { bottom }
-                items {
+                entries {
                     item {
                         icon { add }
                         text("Increment the click-counter")
