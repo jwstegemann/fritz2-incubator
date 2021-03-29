@@ -37,7 +37,7 @@ enum class SelectionMode {
 
 @Lenses
 data class Column<T>(
-    val _id: String, // must be unique!
+    val id: String, // must be unique!
     val lens: Lens<T, String>? = null,
     val headerName: String = "",
     val minWidth: Property? = null,
@@ -47,8 +47,7 @@ data class Column<T>(
     val sorting: Sorting = Sorting.NONE,
     val sortBy: Comparator<T>? = null,
     val styling: Style<BasicParams> = {},
-    // TODO: rowStore soll (und braucht!) nicht nullable sein!
-    val content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit,
+    val content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>) -> Unit,
     val stylingHead: Style<BasicParams> = {},
     val contentHead: Div.(column: Column<T>) -> Unit
 )
@@ -60,7 +59,7 @@ data class ColumnIdSorting(
     companion object {
         fun noSorting() = ColumnIdSorting(null)
 
-        fun <T> of(column: Column<T>) = ColumnIdSorting(column._id, column.sorting)
+        fun <T> of(column: Column<T>) = ColumnIdSorting(column.id, column.sorting)
     }
 }
 
@@ -133,7 +132,7 @@ interface SortingRenderer {
     fun renderSortingDisabled(context: Div)
 }
 
-class SingleArrowSortingRenderer() : SortingRenderer {
+class SingleArrowSortingRenderer : SortingRenderer {
     val sortDirectionSelected: Style<BasicParams> = {
         color { neutral }
     }
@@ -309,20 +308,18 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
                 { margin { "0" } },
                 id = uniqueId()
             ) {
-                if (rowStore != null) {
-                    checked(
-                        component.selectionStore.data.map { selectedRows ->
-                            selectedRows.contains(rowStore.current)
-                        }
-                    )
-                    events {
-                        when (component.selection.value.selectionMode) {
-                            SelectionMode.Single ->
-                                clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRow
-                            SelectionMode.Multi ->
-                                clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRows
-                            else -> Unit
-                        }
+                checked(
+                    component.selectionStore.data.map { selectedRows ->
+                        selectedRows.contains(rowStore.current)
+                    }
+                )
+                events {
+                    when (component.selection.value.selectionMode) {
+                        SelectionMode.Single ->
+                            clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRow
+                        SelectionMode.Multi ->
+                            clicks.events.map { rowStore.current } handledBy component.selectionStore.selectRows
+                        else -> Unit
                     }
                 }
             }
@@ -413,7 +410,7 @@ class SelectionByClick<T, I> : SelectionStrategy<T, I> {
  *  tfoot what will we do with this section of a table?
  *
  */
-class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowIdProvider: (T) -> I) :
+open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowIdProvider: (T) -> I) :
     Component<Unit> {
     companion object {
         const val prefix = "table"
@@ -510,14 +507,14 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         }
     }
 
-    private val columnStateIdProvider: (Pair<Column<T>, ColumnIdSorting>) -> String = { it.first._id + it.second }
+    private val columnStateIdProvider: (Pair<Column<T>, ColumnIdSorting>) -> String = { it.first.id + it.second }
 
     class TableColumnsContext<T> {
 
         class TableColumnContext<T> {
 
             fun build(): Column<T> = Column(
-                _id.value,
+                id.value,
                 lens.value,
                 header.title.value,
                 width?.min?.value,
@@ -532,7 +529,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
                 header.content.value
             )
 
-            val _id = ComponentProperty(uniqueId())
+            val id = ComponentProperty(uniqueId())
             val lens = ComponentProperty<Lens<T, String>?>(null)
 
             class WidthContext {
@@ -576,16 +573,19 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             }
 
             val sorting = ComponentProperty<SortingContext.() -> Sorting> { none }
+
             val sortBy = ComponentProperty<Comparator<T>?>(null)
             fun sortBy(expression: (T) -> Comparable<*>) {
                 sortBy(compareBy(expression))
             }
-            // TODO: Überladung mit variabler Anzahl -> sortBy(Person::Name, Person::Phone)
+            fun sortBy(vararg expressions: (T) -> Comparable<*>) {
+                sortBy(compareBy(*expressions))
+            }
 
             val styling = ComponentProperty<Style<BasicParams>> {}
 
             val content =
-                ComponentProperty<Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit>
+                ComponentProperty<Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>) -> Unit>
                 { store, _ -> store?.data?.asText() }
         }
 
@@ -595,14 +595,14 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             get() = initialColumns
 
         fun column(expression: TableColumnContext<T>.() -> Unit) {
-            TableColumnContext<T>().apply(expression).build().also { initialColumns[it._id] = it }
+            TableColumnContext<T>().apply(expression).build().also { initialColumns[it.id] = it }
         }
 
         fun column(title: String = "", expression: TableColumnContext<T>.() -> Unit) {
             TableColumnContext<T>().apply {
                 header { title(title) }
                 expression()
-            }.build().also { initialColumns[it._id] = it }
+            }.build().also { initialColumns[it.id] = it }
         }
 
     }
@@ -673,12 +673,9 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             val click = StrategySpecifier.Click
         }
 
-        // TODO: Namen tauschen
-        //  - store statt row(s)
-        //  - row statt selected
         class Single<T> {
-            val row = ComponentProperty<Store<T?>?>(null)
-            val selected = NullableDynamicComponentProperty<T>(emptyFlow())
+            val store = ComponentProperty<Store<T?>?>(null)
+            val row = NullableDynamicComponentProperty<T>(emptyFlow())
         }
 
         internal var single: Single<T>? = null
@@ -687,8 +684,8 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         }
 
         class Multi<T> {
-            val rows = ComponentProperty<Store<List<T>>?>(null)
-            val selected = DynamicComponentProperty<List<T>>(emptyFlow())
+            val store = ComponentProperty<Store<List<T>>?>(null)
+            val rows = DynamicComponentProperty<List<T>>(emptyFlow())
         }
 
         internal var multi: Multi<T>? = null
@@ -746,6 +743,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         val fixedHeader = ComponentProperty(true)
         val fixedHeaderHeight = ComponentProperty<Property>("37px")
+
         // TODO: Alle restlichen wegnehmen! -> Sind über Styling-Properties setzbar!
         val width = ComponentProperty<Property?>("100%")
         val maxWidth = ComponentProperty<Property?>(null)
@@ -775,7 +773,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         stateStore.update(
             State(
-                columns.value.values.filter { !it.hidden }.sortedBy { it.position }.map { it._id },
+                columns.value.values.filter { !it.hidden }.sortedBy { it.position }.map { it.id },
                 emptyList()
             )
         )
@@ -786,10 +784,10 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             // preset selection via external store or flow
             when (selection.value.selectionMode) {
                 SelectionMode.Single ->
-                    (selection.value.single?.row?.value?.data
-                        ?: selection.value.single?.selected!!.values) handledBy selectionStore.updateRow
-                SelectionMode.Multi -> (selection.value.multi?.rows?.value?.data
-                    ?: selection.value.multi?.selected!!.values) handledBy selectionStore.update
+                    (selection.value.single?.store?.value?.data
+                        ?: selection.value.single?.row!!.values) handledBy selectionStore.updateRow
+                SelectionMode.Multi -> (selection.value.multi?.store?.value?.data
+                    ?: selection.value.multi?.rows!!.values) handledBy selectionStore.update
                 else -> Unit
             }
 
@@ -812,10 +810,10 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             // tie selection to external store if needed
             when (selection.value.selectionMode) {
                 SelectionMode.Single -> events {
-                    selection.value.single!!.row.value?.let { selectedRow handledBy it.update }
+                    selection.value.single!!.store.value?.let { selectedRow handledBy it.update }
                 }
                 SelectionMode.Multi -> events {
-                    selection.value.multi!!.rows.value?.let { selectedRows handledBy it.update }
+                    selection.value.multi!!.store.value?.let { selectedRows handledBy it.update }
                 }
                 else -> Unit
             }
@@ -982,7 +980,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
                                     // Sorting
                                     (::div.styled(sorterStyle) {}){
-                                        if (column._id == sorting.id) {
+                                        if (column.id == sorting.id) {
                                             component.options.value.sorting.value.renderer.value.renderSortingActive(
                                                 this,
                                                 sorting.strategy

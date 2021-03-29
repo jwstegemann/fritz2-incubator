@@ -1405,18 +1405,18 @@ fun RenderContext.tableDemo() {
                             SelectionMode.Single -> {
                                 single {
                                     if (selectionSource == "flow") {
-                                        selected(singleSelectionStore.data)
+                                        row(singleSelectionStore.data)
                                     } else {
-                                        row(singleSelectionStore)
+                                        store(singleSelectionStore)
                                     }
                                 }
                             }
                             SelectionMode.Multi -> {
                                 multi {
                                     if (selectionSource == "flow") {
-                                        selected(multiSelectionStore.data)
+                                        rows(multiSelectionStore.data)
                                     } else {
-                                        rows(multiSelectionStore)
+                                        store(multiSelectionStore)
                                     }
                                 }
                             }
@@ -1514,7 +1514,7 @@ fun RenderContext.tableDemo() {
                         column("Name") {
                             lens(fullNameLens)
                             content { _, rowStore ->
-                                inputField(store = rowStore!!.sub(fullNameLens)) {
+                                inputField(store = rowStore.sub(fullNameLens)) {
                                     size { small }
                                 }
                             }
@@ -1557,7 +1557,7 @@ fun RenderContext.tableDemo() {
                             }
                             width { max("2fr") }
                             content { _, rowStore ->
-                                rowStore?.let { person ->
+                                rowStore.let { person ->
                                     val street = person.sub(personAddressLens + streetLens)
                                     val houseNumber = person.sub(personAddressLens + houseNumberLens)
                                     val postalCode = person.sub(personAddressLens + postalCodeLens)
