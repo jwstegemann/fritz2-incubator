@@ -47,6 +47,7 @@ data class Column<T>(
     val sorting: Sorting = Sorting.NONE,
     val sortBy: Comparator<T>? = null,
     val styling: Style<BasicParams> = {},
+    // TODO: rowStore soll (und braucht!) nicht nullable sein!
     val content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>?) -> Unit,
     val stylingHead: Style<BasicParams> = {},
     val contentHead: Div.(column: Column<T>) -> Unit
@@ -553,8 +554,8 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             class HeaderContext<T> {
                 val title = ComponentProperty("")
                 val styling = ComponentProperty<Style<BasicParams>> {}
-                val content = ComponentProperty<Div.(column: Column<T>) -> Unit> { config ->
-                    +config.headerName
+                val content = ComponentProperty<Div.(column: Column<T>) -> Unit> { column ->
+                    +column.headerName
                 }
             }
 
@@ -576,6 +577,11 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
             val sorting = ComponentProperty<SortingContext.() -> Sorting> { none }
             val sortBy = ComponentProperty<Comparator<T>?>(null)
+            fun sortBy(expression: (T) -> Comparable<*>) {
+                sortBy(compareBy(expression))
+            }
+            // TODO: Überladung mit variabler Anzahl -> sortBy(Person::Name, Person::Phone)
+
             val styling = ComponentProperty<Style<BasicParams>> {}
 
             val content =
@@ -617,6 +623,9 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
         )
     }
 
+    // TODO: Diese Parameter in Options verschieben
+    //   - präfix wegnehmen (alles ist default)
+    //   - HTML Namen durch Row, Cell usw. ersetzen
     val defaultTHeadStyle = ComponentProperty<Style<BasicParams>> {
         border {
             width { thin }
@@ -664,6 +673,9 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
             val click = StrategySpecifier.Click
         }
 
+        // TODO: Namen tauschen
+        //  - store statt row(s)
+        //  - row statt selected
         class Single<T> {
             val row = ComponentProperty<Store<T?>?>(null)
             val selected = NullableDynamicComponentProperty<T>(emptyFlow())
@@ -734,6 +746,7 @@ class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowI
 
         val fixedHeader = ComponentProperty(true)
         val fixedHeaderHeight = ComponentProperty<Property>("37px")
+        // TODO: Alle restlichen wegnehmen! -> Sind über Styling-Properties setzbar!
         val width = ComponentProperty<Property?>("100%")
         val maxWidth = ComponentProperty<Property?>(null)
         val height = ComponentProperty<Property?>(null)

@@ -1510,7 +1510,6 @@ fun RenderContext.tableDemo() {
                         column("ID") {
                             lens(personIdLens + Formats.intFormat)
                             width { minmax("80px") }
-
                         }
                         column("Name") {
                             lens(fullNameLens)
@@ -1539,9 +1538,7 @@ fun RenderContext.tableDemo() {
                             styling {
                                 color { danger }
                             }
-                            sortBy(compareBy { person ->
-                                person.birthday
-                            })
+                            sortBy(Person::birthday)
                         }
                         column {
                             // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
@@ -1554,8 +1551,8 @@ fun RenderContext.tableDemo() {
                                     color { primary.highlightContrast }
                                     fontWeight { bold }
                                 }
-                                content { config ->
-                                    +config.headerName
+                                content { column ->
+                                    +column.headerName
                                 }
                             }
                             width { max("2fr") }
