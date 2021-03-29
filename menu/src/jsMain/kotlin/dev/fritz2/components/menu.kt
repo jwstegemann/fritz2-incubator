@@ -429,9 +429,12 @@ data class MenuItem(
             }
         }
 
-        private val menuItemButtonStyle: Style<BasicParams> = {
+        private val menuItemButtonVariant: Style<BasicParams> = {
             fontWeight { normal }
             color { Theme().fontColor }
+            focus {
+                boxShadow { none }
+            }
         }
     }
 
@@ -457,11 +460,11 @@ data class MenuItem(
                     baseClass = staticMenuItemCss,
                     styling = if (enabled) menuItemActiveStyle else ({ })
                 ) {
-                    clickButton(styling = menuItemButtonStyle) {
+                    clickButton() {
                         icon?.let {
                             icon { def(it) }
                         }
-                        variant { ghost }
+                        variant { menuItemButtonVariant }
                         text(text)
                         disabled(!enabled)
                     }.map { it } handledBy clickStore.forwardMouseEvents
