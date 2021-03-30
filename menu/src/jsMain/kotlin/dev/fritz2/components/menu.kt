@@ -228,7 +228,7 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
         val placement = placement.value.invoke(menuStyles.placements)
 
         context.apply {
-            box(baseClass = staticContainerCss, styling = placement.containerLayout) {
+            flexBox(baseClass = staticContainerCss, styling = placement.containerLayout) {
 
                 box(id = "menu-toggle-${uniqueId()}") {
                     toggle.value(this)
