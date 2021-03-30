@@ -136,7 +136,7 @@ fun main() {
                         text(clickCounterStore.data.map { "Click-counter: $it" })
                     }
                 }
-                placement { bottom }
+                placement { right }
                 entries {
                     item {
                         icon { add }
@@ -163,7 +163,19 @@ fun main() {
                         )
                     }
                     custom {
-                        spinner { }
+                        menu {
+                            toggle {
+                                pushButton {
+                                    variant { outline }
+                                    text("Submenu")
+                                }
+                            }
+                            entries {
+                                item {
+                                    text("Submenu item")
+                                }
+                            }
+                        }
                     }
                     divider()
                     subheader("Custom MenuEntryContext")
