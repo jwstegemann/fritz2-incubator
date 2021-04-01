@@ -17,6 +17,8 @@ import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.name
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
+import dev.fritz2.styling.theme.ColorScheme
+import dev.fritz2.styling.theme.Colors
 import dev.fritz2.styling.theme.Property
 import dev.fritz2.styling.theme.Theme
 import dev.fritz2.styling.whenever
@@ -48,8 +50,8 @@ data class Column<T>(
     val sortBy: Comparator<T>? = null,
     val styling: Style<BasicParams> = {},
     val content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>) -> Unit,
-    val stylingHead: Style<BasicParams> = {},
-    val contentHead: Div.(column: Column<T>) -> Unit
+    val headerStyling: Style<BasicParams> = {},
+    val headerContent: Div.(column: Column<T>) -> Unit
 )
 
 data class ColumnIdSorting(
@@ -134,13 +136,14 @@ interface SortingRenderer {
 
 class SingleArrowSortingRenderer : SortingRenderer {
     val sortDirectionSelected: Style<BasicParams> = {
-        color { neutral }
+        background { color { "var(--table-sorting-selected-background-color)" } }
+        color { "var(--table-sorting-selected-foreground-color)" }
     }
 
     val sortDirectionIcon: Style<BasicParams> = {
         width { "2rem" }
         height { "2rem" }
-        color { primary.baseContrast }
+        color { "var(--table-header-foreground-color)" }
         css("cursor:pointer;")
     }
 
@@ -171,28 +174,6 @@ class SingleArrowSortingRenderer : SortingRenderer {
     }
 }
 
-/**
- * Central type for dynamic column configuration state
- */
-data class State(
-    val order: List<String>,
-    val sortingPlan: SortingPlan,
-) {
-    fun <T> orderedColumnsWithSorting(columns: Map<String, Column<T>>):
-            List<Pair<Column<T>, ColumnIdSorting>> =
-        order.map { colId ->
-            val sortingIndexForCurrentColumn = sortingPlan.indexOfFirst { (id, _) -> id == colId }
-            if (sortingIndexForCurrentColumn != -1) {
-                columns[colId]!! to sortingPlan[sortingIndexForCurrentColumn]
-            } else {
-                columns[colId]!! to ColumnIdSorting.noSorting()
-            }
-        }
-
-    fun <T> columnSortingPlan(columns: Map<String, Column<T>>): ColumnSortingPlan<T> =
-        sortingPlan.map { (colId, sorting) -> columns[colId]!! to sorting }
-}
-
 interface SortingPlanReducer {
     fun reduce(sortingPlan: SortingPlan, activated: ColumnIdSorting): SortingPlan
 }
@@ -219,9 +200,33 @@ class TogglingSortingPlanReducer : SortingPlanReducer {
         }
 }
 
-class StateStore(private val sortingPlanReducer: SortingPlanReducer) : RootStore<State>(
+/**
+ * Central type for dynamic column configuration state
+ */
+data class State(
+    val order: List<String>,
+    val sortingPlan: SortingPlan,
+) {
+    fun <T> orderedColumnsWithSorting(columns: Map<String, Column<T>>):
+            List<Pair<Column<T>, ColumnIdSorting>> =
+        order.map { colId ->
+            val sortingIndexForCurrentColumn = sortingPlan.indexOfFirst { (id, _) -> id == colId }
+            if (sortingIndexForCurrentColumn != -1) {
+                columns[colId]!! to sortingPlan[sortingIndexForCurrentColumn]
+            } else {
+                columns[colId]!! to ColumnIdSorting.noSorting()
+            }
+        }
+
+    fun <T> columnSortingPlan(columns: Map<String, Column<T>>): ColumnSortingPlan<T> =
+        sortingPlan.map { (colId, sorting) -> columns[colId]!! to sorting }
+}
+
+class StateStore<T, I>(private val sortingPlanReducer: SortingPlanReducer) : RootStore<State>(
     State(emptyList(), emptyList())
 ) {
+    fun renderingData(component: TableComponent<T, I>) =
+        data.map { it.orderedColumnsWithSorting(component.columns.value) }
 
     val sortingChanged = handle { state, activated: ColumnIdSorting ->
         state.copy(sortingPlan = sortingPlanReducer.reduce(state.sortingPlan, activated))
@@ -237,7 +242,8 @@ class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<L
     val selectedData = data.drop(1)
 
     val syncHandler = handle<List<T>> { old, allItems ->
-        old.map { oldItem -> allItems.firstOrNull { rowIdProvider(it) == rowIdProvider(oldItem) } ?: oldItem }
+        //old.map { oldItem -> allItems.firstOrNull { rowIdProvider(it) == rowIdProvider(oldItem) } ?: oldItem }
+        old.mapNotNull { oldItem -> allItems.firstOrNull { rowIdProvider(it) == rowIdProvider(oldItem) } }
     }
 
     val selectRows = handleAndEmit<T, List<T>> { selectedRows, new ->
@@ -405,6 +411,72 @@ class SelectionByClick<T, I> : SelectionStrategy<T, I> {
 }
 
 
+interface RowColoringStrategy {
+    fun <T> coloringOf(index: Int, column: Column<T>, item: T): ColorScheme?
+}
+
+class SimpleRowColoring(private val colorScheme: ColorScheme) : RowColoringStrategy {
+    override fun <T> coloringOf(index: Int, column: Column<T>, item: T): ColorScheme = colorScheme
+}
+
+fun simple(value: Colors.() -> ColorScheme) = SimpleRowColoring(Theme().colors.value())
+
+class CyclingRowColoring(vararg rowColorScheme: ColorScheme) : RowColoringStrategy {
+    private val rowColorSchemes by lazy {
+        rowColorScheme.toList()
+    }
+
+    override fun <T> coloringOf(index: Int, column: Column<T>, item: T): ColorScheme =
+        rowColorSchemes[index % rowColorSchemes.size]
+}
+
+class OddEvenContext {
+    val odd = ComponentProperty<Colors.() -> ColorScheme> { primary }
+    val even = ComponentProperty<Colors.() -> ColorScheme> { secondary }
+}
+
+fun oddEven(value: OddEvenContext.() -> Unit): RowColoringStrategy = OddEvenContext().apply(value).let {
+    CyclingRowColoring(it.odd.value(Theme().colors), it.even.value(Theme().colors))
+}
+
+class CyclingContext {
+    val colorSchemes = mutableListOf<ColorScheme>()
+
+    fun add(value: Colors.() -> ColorScheme) {
+        colorSchemes.add(Theme().colors.value())
+    }
+}
+
+fun cycling(value: CyclingContext.() -> Unit): RowColoringStrategy =
+    CyclingRowColoring(*CyclingContext().apply(value).colorSchemes.toTypedArray())
+
+class ExpressionBasedRowColoring<E>(private val expression: Colors.(Int, Column<E>, E) -> ColorScheme?) : RowColoringStrategy {
+    override fun <T> coloringOf(index: Int, column: Column<T>, item: T): ColorScheme? =
+        Theme().colors.expression(index, column.unsafeCast<Column<E>>(), item.unsafeCast<E>())
+}
+
+fun <T> expression(value: Colors.(Int, Column<T>, T) -> ColorScheme?): RowColoringStrategy = ExpressionBasedRowColoring(value)
+
+class HierarchicalRowColoring(vararg strategy: RowColoringStrategy) : RowColoringStrategy {
+    private val strategies by lazy {
+        strategy.toList()
+    }
+
+    override fun <T> coloringOf(index: Int, column: Column<T>, item: T): ColorScheme? =
+        strategies.mapNotNull { it.coloringOf(index, column, item) }.firstOrNull()
+}
+
+class HierarchicalContext {
+    val strategies = mutableListOf<RowColoringStrategy>()
+
+    fun add(value: () -> RowColoringStrategy) {
+        strategies.add(value())
+    }
+}
+
+fun hierarchical(value: HierarchicalContext.() -> Unit): RowColoringStrategy =
+    HierarchicalRowColoring(*HierarchicalContext().apply(value).strategies.toTypedArray())
+
 /**
  * TODO open questions
  *  tfoot what will we do with this section of a table?
@@ -460,17 +532,14 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         }
 
         val defaultTr: Style<BasicParams> = {
-            children("&:nth-child(odd) td") {
-                background { color { gray100 } }
-            }
         }
 
         val defaultTh: Style<BasicParams> = {
             background {
-                color { primary.base }
+                color { "var(--table-header-background-color)" }
             }
+            color { "var(--table-header-foreground-color)" }
             verticalAlign { middle }
-            color { primary.baseContrast }
             fontSize { normal }
             position { relative {} }
             paddings {
@@ -489,14 +558,22 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         }
 
         val defaultTd: Style<BasicParams> = {
+            background {
+                color { "var(--table-cell-background-color)" }
+            }
+            color { "var(--table-cell-foreground-color)" }
+
             paddings {
                 vertical { smaller }
                 left { smaller }
                 right { large }
             }
+            /*
             background {
                 color { gray300 }
             }
+
+             */
             borders {
                 right {
                     width { "1px" }
@@ -578,6 +655,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
             fun sortBy(expression: (T) -> Comparable<*>) {
                 sortBy(compareBy(expression))
             }
+
             fun sortBy(vararg expressions: (T) -> Comparable<*>) {
                 sortBy(compareBy(*expressions))
             }
@@ -745,10 +823,12 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         val fixedHeaderHeight = ComponentProperty<Property>("37px")
 
         // TODO: Alle restlichen wegnehmen! -> Sind über Styling-Properties setzbar!
+        //  Nope! Irrtum!
         val width = ComponentProperty<Property?>("100%")
         val maxWidth = ComponentProperty<Property?>(null)
         val height = ComponentProperty<Property?>(null)
         val maxHeight = ComponentProperty<Property?>("97vh")
+
         val cellMinWidth = ComponentProperty<Property>("130px")
         val cellMaxWidth = ComponentProperty<Property>("1fr")
     }
@@ -758,7 +838,37 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         options.value.apply { value() }
     }
 
-    private val stateStore: StateStore by lazy {
+    class HeaderContext {
+
+        val coloring = ComponentProperty(Theme().colors.primary)
+        fun coloring(value: Colors.() -> ColorScheme) {
+            coloring(value(Theme().colors))
+        }
+    }
+
+    val header = ComponentProperty(HeaderContext())
+    fun header(value: HeaderContext.() -> Unit) {
+        header.value.apply { value() }
+    }
+
+    class BodyContext {
+        val coloringStrategy = ComponentProperty<RowColoringStrategy>(
+            SimpleRowColoring(
+                ColorScheme("papayawhip", "black", "papayawhip", "black")
+            )
+        )
+
+        fun coloring(expression: () -> RowColoringStrategy) {
+            coloringStrategy(expression())
+        }
+    }
+
+    val body = ComponentProperty(BodyContext())
+    fun body(value: BodyContext.() -> Unit) {
+        body.value.apply { value() }
+    }
+
+    private val stateStore: StateStore<T, I> by lazy {
         StateStore(options.value.sorting.value.reducer.value)
     }
 
@@ -803,6 +913,11 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
 
                 css("overscroll-behavior: contain")
                 position { relative { } }
+
+                css("--table-header-background-color: ${header.value.coloring.value.base}")
+                css("--table-header-foreground-color: ${header.value.coloring.value.baseContrast}")
+                css("--table-sorting-selected-background-color: var(--table-header-background-color)")
+                css("--table-sorting-selected-foreground-color: var(--table-header-foreground-color)")
             }) {
                 renderTable(styling, baseClass, id, prefix, rowIdProvider, this)
             }
@@ -964,9 +1079,9 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 styling()
             }) {
                 tr {
-                    component.stateStore.data.map { it.orderedColumnsWithSorting(component.columns.value) }
+                    component.stateStore.renderingData(component)
                         .renderEach(component.columnStateIdProvider) { (column, sorting) ->
-                            (::th.styled(column.stylingHead) {
+                            (::th.styled(column.headerStyling) {
                                 defaultTh()
                                 component.defaultThStyle.value()
                             })  {
@@ -976,7 +1091,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                                     alignItems { center }
                                 }) {
                                     // Column Header Content
-                                    with(column) { contentHead(this) }
+                                    with(column) { headerContent(this) }
 
                                     // Sorting
                                     (::div.styled(sorterStyle) {}){
@@ -1019,9 +1134,9 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                     component.options.value.sorting.value.sorter.value.sortedBy(
                         data,
                         state.columnSortingPlan(component.columns.value)
-                    )
-                }.renderEach(rowIdProvider) { t ->
-                    val rowStore = component.dataStore.sub(t, rowIdProvider)
+                    ).withIndex().toList()
+                }.renderEach(IndexedValue<T>::hashCode) { (index, rowData) ->
+                    val rowStore = component.dataStore.sub(rowData, rowIdProvider)
                     val selected = component.selectionStore.data.map { selectedRows ->
                         selectedRows.contains(rowStore.current)
                     }
@@ -1037,6 +1152,10 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                         component.stateStore.data.map { state -> state.order.mapNotNull { component.columns.value[it] } }
                             .renderEach { column ->
                                 (::td.styled(column.styling) {
+                                    body.value.coloringStrategy.value.coloringOf(index, column, rowStore.current)?.also {
+                                        css("--table-cell-background-color:${it.base}")
+                                        css("--table-cell-foreground-color:${it.baseContrast}")
+                                    }
                                     defaultTd()
                                     component.defaultTdStyle.value()
                                 }) {

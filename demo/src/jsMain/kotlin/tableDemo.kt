@@ -16,6 +16,10 @@ import model.Address
 import model.Person
 import dev.fritz2.components.datatable.*
 import dev.fritz2.dom.html.Tr
+import dev.fritz2.styling.params.BoxParams
+import dev.fritz2.styling.params.Style
+import dev.fritz2.styling.theme.ColorScheme
+import dev.fritz2.styling.theme.Theme
 import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.flow.combine
 
@@ -1163,7 +1167,8 @@ fun parseCsvPersons(fakeData: String, offset: Int = 0) = fakeData.split('\n').wi
             fields[6],
             fields[7],
             fields[8],
-        )
+        ),
+        jobSet[index % jobSet.size]
     )
 }
 
@@ -1199,12 +1204,13 @@ val emailLens = buildLens("email", Person::email) { p, v -> p.copy(email = v) }
 val mobileLens = buildLens("mobile", Person::mobile) { p, v -> p.copy(mobile = v) }
 val phoneLens = buildLens("phone", Person::phone) { p, v -> p.copy(phone = v) }
 
-
 val personAddressLens = buildLens("address", Person::address) { p, v -> p.copy(address = v) }
 val streetLens = buildLens("street", Address::street) { p, v -> p.copy(street = v) }
 val houseNumberLens = buildLens("houseNumber", Address::houseNumber) { p, v -> p.copy(houseNumber = v) }
 val postalCodeLens = buildLens("postalCode", Address::postalCode) { p, v -> p.copy(postalCode = v) }
 val cityLens = buildLens("city", Address::city) { p, v -> p.copy(city = v) }
+
+val jobLens = buildLens("job", Person::job) { p, v -> p.copy(job = v) }
 
 
 object TableStore : RootStore<List<Person>>(fakeData[false]!!, "personData") {
@@ -1212,8 +1218,6 @@ object TableStore : RootStore<List<Person>>(fakeData[false]!!, "personData") {
         list.filter { it != toDelete }
     }
 }
-
-val jobs = storeOf(jobSet)
 
 val toggle = storeOf(false)
 
@@ -1462,6 +1466,60 @@ fun RenderContext.tableDemo() {
                         dbClicks handledBy doubleClickStore.update
                     }
 
+                    header {
+                        //coloring { tertiary }
+                        coloring(ColorScheme("peru", "maroon", "", "")) // for passing a variable!
+                        /*
+                        // for ad hoc definitions
+                        coloring("peru", "maroon")
+                        coloring {
+                            base { "peru" }
+                            baseContrast { "maroon" }
+                        }
+                         */
+
+                        //fixedHeader(false)
+                        //fixedHeaderSize { }
+                    }
+
+                    body {
+                        coloring {
+                            hierarchical {
+                                add {
+                                    expression<Person> { index, column, person ->
+                                        if (person.fullName.contains("c", ignoreCase = true)) {
+                                            oddEven {
+                                                odd { ColorScheme("orchid", "white", "orchid", "white") }
+                                                even { ColorScheme("plum", "white", "plum", "white") }
+                                            }.coloringOf(index, column, person)
+                                        } else null
+                                    }
+                                }
+                                add {
+                                    oddEven {
+                                        odd { ColorScheme("peachpuff", "black", "peachpuff", "black") }
+                                        even { ColorScheme("papayawhip", "black", "papayawhip", "black") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    /*
+
+                    columns {
+                        // Columns brauchen auch die Farbinfos + Index + Column + Item!
+                        column("foo") {
+                            styling { coloring -> // Styling ggf. lokal anpassen
+                            // z.B. (Zelle einfärben, je nach Wert, aber bei oddEven auch in zwei Varianten!)
+                            }
+                            content { coloring -> // Colors + Index zusätzlich -> ggf. an Subkomponenten durchreichen!
+                            }
+                        }
+                    }
+
+                     */
+
                     options {
                         //fixedHeader(false)
                         height("auto")
@@ -1511,27 +1569,39 @@ fun RenderContext.tableDemo() {
                             lens(personIdLens + Formats.intFormat)
                             width { minmax("80px") }
                         }
+                        column("CRUD") {
+                            content { _, rowStore ->
+                                clickButton {
+                                    text("Drop")
+                                    size { small }
+                                }.map {
+                                    console.log("Lösche: ${rowStore.current.fullName}")
+                                    rowStore.current
+                                } handledBy TableStore.remove
+                            }
+                        }
                         column("Name") {
                             lens(fullNameLens)
                             content { _, rowStore ->
-                                inputField(store = rowStore.sub(fullNameLens)) {
+                                inputField({
+                                    color { "black" }
+                                }, store = rowStore.sub(fullNameLens)) {
                                     size { small }
                                 }
                             }
-                            width { min("10rem") }
+                            width { min("15rem") }
                         }
+                        // TODO: Klären, wieso das zu einer LensException führt!
+                        /*
+                        val foo = storeOf("")
                         column("Job") {
-                            content { _, _ ->
-                                select {
-                                    jobs.data.renderEach {
-                                        option {
-                                            value(it)
-                                            +it
-                                        }
-                                    }
+                            content { _, rowStore ->
+                                selectField(items = jobSet, store = foo) { // rowStore.sub(jobLens)) {
+                                    size { small }
                                 }
                             }
                         }
+                         */
                         column("Birthday") {
                             lens(birthdayLens + Formats.dateFormat)
                             width { minmax("120px") }
@@ -1547,9 +1617,16 @@ fun RenderContext.tableDemo() {
                             header {
                                 title("Address")
                                 styling {
-                                    background { color { primary.highlight } }
-                                    color { primary.highlightContrast }
-                                    fontWeight { bold }
+                                    /*
+                                    css("--table-header-background-color: ${Theme().colors.primary.highlight}")
+                                    css("--table-header-foreground-color: ${Theme().colors.primary.highlightContrast}")
+
+                                     */
+                                    css("--table-sorting-selected-background-color: ${Theme().colors.primary.base}")
+                                    css("--table-sorting-selected-foreground-color: ${Theme().colors.primary.baseContrast}")
+                                    //background { color { primary.highlight } }
+                                    //color { primary.highlightContrast }
+                                    fontWeight { normal }
                                 }
                                 content { column ->
                                     +column.headerName
