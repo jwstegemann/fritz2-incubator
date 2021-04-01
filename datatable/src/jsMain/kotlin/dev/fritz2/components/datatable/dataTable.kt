@@ -48,8 +48,18 @@ data class Column<T>(
     val position: Int = 0,
     val sorting: Sorting = Sorting.NONE,
     val sortBy: Comparator<T>? = null,
-    val styling: Style<BasicParams> = {},
-    val content: Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>) -> Unit,
+    val styling: BasicParams.(
+        index: Int,
+        item: T,
+        column: Column<T>,
+        colors: ColorScheme?
+    ) -> Unit = { _, _, _, _ -> },
+    val content: Td.(
+        index: Int,
+        cellStore: Store<String>?,
+        rowStore: SubStore<List<T>, List<T>, T>,
+        colors: ColorScheme?
+    ) -> Unit,
     val headerStyling: Style<BasicParams> = {},
     val headerContent: Div.(column: Column<T>) -> Unit
 )
@@ -309,7 +319,7 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
             max("60px")
         }
         sorting { disabled }
-        content { _, rowStore ->
+        content { _, _, rowStore, _ ->
             checkbox(
                 { margin { "0" } },
                 id = uniqueId()
@@ -450,12 +460,14 @@ class CyclingContext {
 fun cycling(value: CyclingContext.() -> Unit): RowColoringStrategy =
     CyclingRowColoring(*CyclingContext().apply(value).colorSchemes.toTypedArray())
 
-class ExpressionBasedRowColoring<E>(private val expression: Colors.(Int, Column<E>, E) -> ColorScheme?) : RowColoringStrategy {
+class ExpressionBasedRowColoring<E>(private val expression: Colors.(Int, Column<E>, E) -> ColorScheme?) :
+    RowColoringStrategy {
     override fun <T> coloringOf(index: Int, column: Column<T>, item: T): ColorScheme? =
         Theme().colors.expression(index, column.unsafeCast<Column<E>>(), item.unsafeCast<E>())
 }
 
-fun <T> expression(value: Colors.(Int, Column<T>, T) -> ColorScheme?): RowColoringStrategy = ExpressionBasedRowColoring(value)
+fun <T> expression(value: Colors.(Int, Column<T>, T) -> ColorScheme?): RowColoringStrategy =
+    ExpressionBasedRowColoring(value)
 
 class HierarchicalRowColoring(vararg strategy: RowColoringStrategy) : RowColoringStrategy {
     private val strategies by lazy {
@@ -660,11 +672,21 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 sortBy(compareBy(*expressions))
             }
 
-            val styling = ComponentProperty<Style<BasicParams>> {}
+            val styling = ComponentProperty<BasicParams.(
+                index: Int,
+                item: T,
+                column: Column<T>,
+                colors: ColorScheme?
+            ) -> Unit> { _, _, _, _ -> }
 
             val content =
-                ComponentProperty<Td.(cellStore: Store<String>?, rowStore: SubStore<List<T>, List<T>, T>) -> Unit>
-                { store, _ -> store?.data?.asText() }
+                ComponentProperty<Td.(
+                    index: Int,
+                    cellStore: Store<String>?,
+                    rowStore: SubStore<List<T>, List<T>, T>,
+                    colors: ColorScheme?
+                ) -> Unit>
+                { _, store, _, _ -> store?.data?.asText() }
         }
 
         private var initialColumns: MutableMap<String, Column<T>> = mutableMapOf()
@@ -1151,18 +1173,23 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
 
                         component.stateStore.data.map { state -> state.order.mapNotNull { component.columns.value[it] } }
                             .renderEach { column ->
-                                (::td.styled(column.styling) {
-                                    body.value.coloringStrategy.value.coloringOf(index, column, rowStore.current)?.also {
+                                (::td.styled {
+                                    val colors =
+                                        body.value.coloringStrategy.value.coloringOf(index, column, rowStore.current)
+                                    colors?.also {
                                         css("--table-cell-background-color:${it.base}")
                                         css("--table-cell-foreground-color:${it.baseContrast}")
                                     }
                                     defaultTd()
+                                    column.styling(this, index, rowStore.current, column, colors)
                                     component.defaultTdStyle.value()
                                 }) {
                                     column.content(
                                         this,
+                                        index,
                                         if (column.lens != null) rowStore.sub(column.lens) else null,
-                                        rowStore
+                                        rowStore,
+                                        body.value.coloringStrategy.value.coloringOf(index, column, rowStore.current)
                                     )
                                 }
                             }

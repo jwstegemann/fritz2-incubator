@@ -1570,8 +1570,9 @@ fun RenderContext.tableDemo() {
                             width { minmax("80px") }
                         }
                         column("CRUD") {
-                            content { _, rowStore ->
+                            content { _, _, rowStore, _ ->
                                 clickButton {
+                                    color { header.value.coloring.value.base }
                                     text("Drop")
                                     size { small }
                                 }.map {
@@ -1582,9 +1583,12 @@ fun RenderContext.tableDemo() {
                         }
                         column("Name") {
                             lens(fullNameLens)
-                            content { _, rowStore ->
+                            content { _, _, rowStore, colors ->
                                 inputField({
-                                    color { "black" }
+                                    colors?.let {
+                                        background { color { it.base } }
+                                        color { it.baseContrast }
+                                    }
                                 }, store = rowStore.sub(fullNameLens)) {
                                     size { small }
                                 }
@@ -1605,8 +1609,19 @@ fun RenderContext.tableDemo() {
                         column("Birthday") {
                             lens(birthdayLens + Formats.dateFormat)
                             width { minmax("120px") }
-                            styling {
-                                color { danger }
+                            styling { index, person, column, _ ->
+                                oddEven {
+                                    if (person.birthday.year < 2000) {
+                                        odd { ColorScheme("seagreen", "white", "seagreen", "white") }
+                                        even { ColorScheme("mediumseagreen", "white", "mediumseagreen", "white") }
+                                    } else {
+                                        odd { ColorScheme("slateblue", "white", "slateblue", "white") }
+                                        even { ColorScheme("skyblue", "white", "skyblue", "white") }
+                                    }
+                                }.coloringOf(index, column, person)?.also {
+                                    background { color { it.base } }
+                                    color { it.baseContrast }
+                                }
                             }
                             sortBy(Person::birthday)
                         }
@@ -1633,7 +1648,7 @@ fun RenderContext.tableDemo() {
                                 }
                             }
                             width { max("2fr") }
-                            content { _, rowStore ->
+                            content { _, _, rowStore, _ ->
                                 rowStore.let { person ->
                                     val street = person.sub(personAddressLens + streetLens)
                                     val houseNumber = person.sub(personAddressLens + houseNumberLens)
