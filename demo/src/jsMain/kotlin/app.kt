@@ -75,36 +75,33 @@ fun RenderContext.contentFrame(init: Div.() -> Unit): Div {
 }
 
 
-class MyCustomEntriesContext : MenuEntriesContext() {
+class RadioGroupContext {
+    val items = ComponentProperty(listOf<String>())
 
-    class RadioGroupContext {
-        val items = ComponentProperty(listOf<String>())
-
-        fun build() = object : MenuEntry {
-            override fun render(
-                context: RenderContext,
-                styling: BoxParams.() -> Unit,
-                baseClass: StyleClass,
-                id: String?,
-                prefix: String
-            ) {
-                context.apply {
-                    radioGroup(items = items.value, styling = {
-                        margins {
-                            horizontal { small }
-                            vertical { smaller }
-                        }
-                    })
-                }
+    fun build() = object : MenuEntry {
+        override fun render(
+            context: RenderContext,
+            styling: BoxParams.() -> Unit,
+            baseClass: StyleClass,
+            id: String?,
+            prefix: String
+        ) {
+            context.apply {
+                radioGroup(items = items.value, styling = {
+                    margins {
+                        horizontal { small }
+                        vertical { smaller }
+                    }
+                })
             }
         }
     }
-
-    fun radios(expression: RadioGroupContext.() -> Unit) = RadioGroupContext()
-        .apply(expression)
-        .build()
-        .also(::addEntry)
 }
+
+fun MenuEntriesContext.radios(expression: RadioGroupContext.() -> Unit) = RadioGroupContext()
+    .apply(expression)
+    .build()
+    .run(::addEntry)
 
 
 fun main() {
@@ -130,13 +127,12 @@ fun main() {
                 }
             }
 
-            menu(entriesContextProvider = { MyCustomEntriesContext() }) {
+            menu {
                 toggle {
                     pushButton {
                         text(clickCounterStore.data.map { "Click-counter: $it" })
                     }
                 }
-                placement { right }
                 entries {
                     item {
                         icon { add }
@@ -170,6 +166,7 @@ fun main() {
                                     text("Submenu")
                                 }
                             }
+                            placement { right }
                             entries {
                                 item {
                                     text("Submenu item")

@@ -115,52 +115,12 @@ private val staticMenuEntryCss = staticStyle("menu-entry") {
  * }
  * ```
  *
- * Additionally, it is also possible to extend the menu-DSL by injecting a custom subclass of [MenuEntriesContext] that
- * adds additional functionality which may be useful for specific use-cases in which a component is used so often that
- * it might be cumbersome to always pass it via the `custom`-property.
- * This is done via the `entriesContextProvider`-parameter of the [menu]-function. The latter is overloaded in such a
- * way that the custom DSL-elements will be available in the `items`-context once passed.
- *
- * Example:
- * ```kotlin
- * // custom MenuEntryContext that adds support for radio-groups:
- * class MyCustomEntriesContext : MenuEntriesContext() {
- *
- *      class RadioGroupContext {
- *            val items = ComponentProperty(listOf<String>())
- *
- *            fun build() = object : MenuEntry {
- *               override fun render(
- *                   context: RenderContext,
- *                   styling: BoxParams.() -> Unit,
- *                   baseClass: StyleClass,
- *                   id: String?,
- *                   prefix: String
- *               ) {
- *                   context.apply {
- *                        radioGroup(items = items.value)
- *                    }
- *                }
- *            }
- *      }
- *
- *      fun radios(expression: RadioGroupContext.() -> Unit) = RadioGroupContext()
- *          .apply(expression)
- *          .build()
- *          .also(::addEntry) // <-- add the entry to the menu
- * }
- *
- * // passing the custom context at the creation of the menu:
- * menu(entriesContextProvider = { MyCustomEntriesContext() }) {
- *      items {
- *          // now available:
- *          radios { ... }
- *      }
- * }
+ * Additionally, it is also possible to extend the menu-DSL by writing extension methods. See [MenuEntriesContext] for
+ * more information.
  * ```
  */
 @ComponentMarker
-open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvider: () -> E) : Component<Unit> {
+open class MenuComponent : Component<Unit> {
 
     companion object {
         private val staticContainerCss = staticStyle("menu-container") {
@@ -215,7 +175,7 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
             variant { outline }
         }
     }
-    val entries = ComponentProperty<(E.() -> Unit)?>(value = null)
+    val entries = ComponentProperty<(MenuEntriesContext.() -> Unit)?>(value = null)
     val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
 
     override fun render(
@@ -267,7 +227,8 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
             prefix = prefix
         ) {
             entries.value?.let {
-                val entriesContext = entriesContextProvider().apply(it)
+                val entriesContext = MenuEntriesContext().apply(it)
+
                 entriesContext.entries.forEach { entry ->
                     entry.render(context = this, styling = {}, StyleClass.None, id = null, prefix)
                 }
@@ -302,7 +263,6 @@ open class MenuComponent<E : MenuEntriesContext>(private val entriesContextProvi
 
 /**
  * Creates a standard menu.
- * For a menu with a custom, extended DSL use the overloaded variant of this function.
  *
  * @param styling a lambda expression for declaring the styling as fritz2's styling DSL
  * @param baseClass optional CSS class that should be applied to the element
@@ -315,32 +275,8 @@ fun RenderContext.menu(
     baseClass: StyleClass = StyleClass.None,
     id: String = "menu-dropdown-${uniqueId()}",
     prefix: String = "menu-dropdown",
-    build: MenuComponent<MenuEntriesContext>.() -> Unit,
-) = menu(styling, entriesContextProvider = { MenuEntriesContext() }, baseClass, id, prefix, build)
-
-/**
- * Creates a menu with an explicitly specified [MenuEntriesContext] (-subclass) that can be used to extend the menu-DSL.
- *
- * Important: Make sure to pass a [entriesContextProvider] that _does not_ re-use instances of the custom
- * entries-context but instead returns a new instance every time it is called.
- * The menu will be rendered multiple times otherwise!
- *
- * @param styling a lambda expression for declaring the styling as fritz2's styling DSL
- * @param E the actual type of the custom [MenuEntriesContext] subclass
- * @param entriesContextProvider a lambda returning new instances of the custom entries-context
- * @param baseClass optional CSS class that should be applied to the element
- * @param id the ID of the element
- * @param prefix the prefix for the generated CSS class resulting in the form ``$prefix-$hash``
- * @param build a lambda expression for setting up the component itself.
- */
-fun <E : MenuEntriesContext> RenderContext.menu(
-    styling: BasicParams.() -> Unit = {},
-    entriesContextProvider: () -> E,
-    baseClass: StyleClass = StyleClass.None,
-    id: String = "menu-dropdown-${uniqueId()}",
-    prefix: String = "menu-dropdown",
-    build: MenuComponent<E>.() -> Unit,
-) = MenuComponent(entriesContextProvider)
+    build: MenuComponent.() -> Unit,
+) = MenuComponent()
     .apply(build)
     .render(this, styling, baseClass, id, prefix)
 
@@ -349,7 +285,20 @@ typealias MenuEntry = Component<Unit>
 
 /**
  * Context used to build the entries of the menu.
- * This class can also be subclassed to extend the menu-entries-DSL as explained in [MenuComponent].
+ *
+ * The menu-entry-DSL can be extended via standard Kotlin extension methods. Custom entries must implement the
+ * [MenuEntry] interface and are added to the Menu via the [MenuEntriesContext.addEntry] method which is accessibly from
+ * within the extension method.
+ *
+ * The following method adds an instance of `MyMenuEntry` to the Menu. It can simply be called from within the `entries`
+ * context of [MenuComponent].
+ * Notice that `addEntry` is invoked in the end; the entry wouldn't be added otherwise!
+ *
+ * ```kotlin
+ * fun MenuEntriesContext.example(expression: MyContext.() -> Unit) = MyMenuEntry()
+ *      .apply(expression)
+ *      .run(::addEntry)
+ * ```
  */
 open class MenuEntriesContext {
 
@@ -380,45 +329,36 @@ open class MenuEntriesContext {
         fun build() = MenuSubheader(text.value)
     }
 
-    class DividerContext {
-        fun build() = MenuDivider()
-    }
-
 
     private val _entries = mutableListOf<MenuEntry>()
     val entries: List<MenuEntry>
         get() = _entries.toList()
 
-    protected fun addEntry(entry: MenuEntry) {
+    @Suppress("MemberVisibilityCanBePrivate")
+    fun addEntry(entry: MenuEntry) {
         _entries += entry
     }
 
 
-    fun item(expression: ItemContext.() -> Unit): Flow<MouseEvent> {
-        val item = ItemContext()
-            .apply(expression)
-            .build()
-            .also(::addEntry)
-
-        return item.clicks
-    }
+    fun item(expression: ItemContext.() -> Unit): Flow<MouseEvent> = ItemContext()
+        .apply(expression)
+        .build()
+        .also(::addEntry)
+        .run { clicks }
 
     fun custom(content: RenderContext.() -> Unit) = CustomContentContext()
         .apply { content(content) }
         .build()
-        .also(::addEntry)
+        .run(::addEntry)
 
     fun subheader(expression: SubheaderContext.() -> Unit) = SubheaderContext()
         .apply(expression)
         .build()
-        .also(::addEntry)
+        .run(::addEntry)
 
     fun subheader(text: String) = subheader { text(text) }
 
-    fun divider(expression: DividerContext.() -> Unit = { }) = DividerContext()
-        .apply(expression)
-        .build()
-        .also(::addEntry)
+    fun divider() = addEntry(MenuDivider())
 }
 
 
