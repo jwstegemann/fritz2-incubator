@@ -137,28 +137,26 @@ open class MenuComponent : Component<Unit> {
 
         private val staticDropdownCss = staticStyle("menu-dropdown") {
             position(
-                sm = {
-                    absolute {
-                        left { "0px" }
-                    }
-                },
+                sm = { absolute { left { "0px" } } },
                 md = { absolute { } }
             )
             width(
                 sm = { "100%" },
                 md = { minContent }
             )
-            zIndex { "100" }
+            zIndex { overlay }
 
             background { color { neutral } }
             radius { "6px" }
             paddings { vertical { smaller } }
-            overflow { hidden }
+            overflow(
+                sm = { hidden },
+                md = { visible }
+            )
 
             boxShadow { raised }
 
             // FIXME: Animation not working
-            // fade-in-animation
             //opacity { "1" }
             //css("transition: opacity 1s ease-in-out;")
         }
@@ -334,7 +332,6 @@ open class MenuEntriesContext {
     val entries: List<MenuEntry>
         get() = _entries.toList()
 
-    @Suppress("MemberVisibilityCanBePrivate")
     fun addEntry(entry: MenuEntry) {
         _entries += entry
     }

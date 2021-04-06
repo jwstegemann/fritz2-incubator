@@ -174,6 +174,24 @@ fun main() {
                             }
                         }
                     }
+                    custom {
+                        popover {
+                            toggle {
+                                pushButton {
+                                    variant { outline }
+                                    text("Spawn a popover")
+                                }
+                            }
+                            placement { right }
+                            content {
+                                box {
+                                    p {
+                                        +"This is a popover with a very long text."
+                                    }
+                                }
+                            }
+                        }
+                    }
                     divider()
                     subheader("Custom MenuEntryContext")
                     radios {
