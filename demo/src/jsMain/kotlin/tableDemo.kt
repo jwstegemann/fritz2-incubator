@@ -2,7 +2,6 @@ import dev.fritz2.binding.RootStore
 import dev.fritz2.binding.SubStore
 import dev.fritz2.binding.storeOf
 import dev.fritz2.components.*
-import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.RenderContext
 import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
@@ -17,10 +16,8 @@ import model.Person
 import dev.fritz2.components.datatable.*
 import dev.fritz2.dom.html.Tr
 import dev.fritz2.styling.params.BoxParams
-import dev.fritz2.styling.params.Style
 import dev.fritz2.styling.theme.ColorScheme
 import dev.fritz2.styling.theme.Theme
-import dev.fritz2.styling.theme.important
 import kotlinx.coroutines.flow.combine
 
 val extremlyLargeFakePersonSet = """
@@ -1466,64 +1463,19 @@ fun RenderContext.tableDemo() {
                         dbClicks handledBy doubleClickStore.update
                     }
 
-                    header {
-                        //coloring { tertiary }
-                        coloring(ColorScheme("peru", "maroon", "", "")) // for passing a variable!
-                        /*
-                        // for ad hoc definitions
-                        coloring("peru", "maroon")
-                        coloring {
-                            base { "peru" }
-                            baseContrast { "maroon" }
-                        }
-                         */
-
+                    /*
+                    header({
+                        background { color { "peru" } }
+                        color { "maroon" }
+                    }) {
                         //fixedHeader(false)
                         //fixedHeaderSize { }
                     }
-
-                    body {
-                        coloring {
-                            hierarchical {
-                                add {
-                                    expression<Person> { index, column, person ->
-                                        if (person.fullName.contains("c", ignoreCase = true)) {
-                                            oddEven {
-                                                odd { ColorScheme("orchid", "white", "orchid", "white") }
-                                                even { ColorScheme("plum", "white", "plum", "white") }
-                                            }.coloringOf(index, column, person)
-                                        } else null
-                                    }
-                                }
-                                add {
-                                    oddEven {
-                                        odd { ColorScheme("peachpuff", "black", "peachpuff", "black") }
-                                        even { ColorScheme("papayawhip", "black", "papayawhip", "black") }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    /*
-
-                    columns {
-                        // Columns brauchen auch die Farbinfos + Index + Column + Item!
-                        column("foo") {
-                            styling { coloring -> // Styling ggf. lokal anpassen
-                            // z.B. (Zelle einfärben, je nach Wert, aber bei oddEven auch in zwei Varianten!)
-                            }
-                            content { coloring -> // Colors + Index zusätzlich -> ggf. an Subkomponenten durchreichen!
-                            }
-                        }
-                    }
-
                      */
 
                     options {
-                        //fixedHeader(false)
-                        height("auto")
-                        maxHeight("70vh")
+                        //height("auto")
+                        maxHeight("80vh")
                         /*
                         sorting {
                             renderer(object : SortingRenderer {
@@ -1547,7 +1499,6 @@ fun RenderContext.tableDemo() {
                          */
                     }
 
-
                     // Wieso ist das nicht unter options?
                     // oder noch besser unter selection
                     /*
@@ -1560,19 +1511,46 @@ fun RenderContext.tableDemo() {
                             }
                         }
                     }
-
                      */
 
+                    // We need this as common cell style for *all* columns and for passing it into inputField of
+                    // name editing column -> so we centralize it by a val!
+                    val basicCellStyle: (IndexedValue<Person>) -> IndexBasedStyling<Person> = { rowIndex ->
+                        if (rowIndex.value.fullName.contains("c", ignoreCase = true)) {
+                            oddEven<Person> {
+                                odd { background { color { "orchid" } } }
+                                even { background { color { "plum" } } }
+                            } and always { color { "white" } }
+                        } else
+                            oddEven<Person> {
+                                odd { background { color { "peachpuff" } } }
+                                even { background { color { "papayawhip" } } }
+                            } and always { color { "black" } }
+                    }
 
-                    columns {
-                        column("ID") {
+                    // As first parameter to ``columns`` one can optionally pass now styling definitions.
+                    // This resembles the common API design of components factory functions.
+                    columns(/*{ rowIndex ->
+                        styledByIndex(rowIndex) {
+                            basicCellStyle(rowIndex) and odd {
+                                borders {
+                                    bottom {
+                                        color { "purple" }
+                                        style { solid }
+                                        width { fat }
+                                    }
+                                }
+                            }
+                        }
+                    }*/) {
+                        column(title = "ID") {
                             lens(personIdLens + Formats.intFormat)
                             width { minmax("80px") }
                         }
-                        column("CRUD") {
-                            content { _, _, rowStore, _ ->
+                        column(title = "CRUD") {
+                            content { _, _, rowStore ->
                                 clickButton {
-                                    color { header.value.coloring.value.base }
+                                    //color { header.value.coloring.value.base }
                                     text("Drop")
                                     size { small }
                                 }.map {
@@ -1581,14 +1559,14 @@ fun RenderContext.tableDemo() {
                                 } handledBy TableStore.remove
                             }
                         }
-                        column("Name") {
+                        column(title = "Name") {
                             lens(fullNameLens)
-                            content { _, _, rowStore, colors ->
+                            content { rowIndex, _, rowStore ->
                                 inputField({
-                                    colors?.let {
-                                        background { color { it.base } }
-                                        color { it.baseContrast }
-                                    }
+                                    /*
+                                    this as BoxParams
+                                    styledByIndex(rowIndex) { basicCellStyle(rowIndex) }
+                                     */
                                 }, store = rowStore.sub(fullNameLens)) {
                                     size { small }
                                 }
@@ -1606,49 +1584,35 @@ fun RenderContext.tableDemo() {
                             }
                         }
                          */
-                        column("Birthday") {
+
+                        // As first parameter to ``column`` one can optionally pass now styling definitions too like
+                        // for ``columns``. This resembles the common API design of components factory functions.
+                        // Idea: It might be better to change the order and put the title as first parameter?
+                        column({ /*(_, person) ->
+                            background { color { if (person.birthday.year < 2000) "seagreen" else "slateblue" } }
+                            color { "white" }
+                            */
+                        }, title = "Birthday") {
                             lens(birthdayLens + Formats.dateFormat)
                             width { minmax("120px") }
-                            styling { index, person, column, _ ->
-                                oddEven {
-                                    if (person.birthday.year < 2000) {
-                                        odd { ColorScheme("seagreen", "white", "seagreen", "white") }
-                                        even { ColorScheme("mediumseagreen", "white", "mediumseagreen", "white") }
-                                    } else {
-                                        odd { ColorScheme("slateblue", "white", "slateblue", "white") }
-                                        even { ColorScheme("skyblue", "white", "skyblue", "white") }
-                                    }
-                                }.coloringOf(index, column, person)?.also {
-                                    background { color { it.base } }
-                                    color { it.baseContrast }
-                                }
-                            }
                             sortBy(Person::birthday)
                         }
                         column {
                             // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
                             // the data from the table itself!
                             // ``header`` oder ``head``?
-                            header {
+                            header(/*{
+                                background { color { primary.highlight } }
+                                color { primary.highlightContrast }
+                                //fontWeight { normal }
+                            }*/) {
                                 title("Address")
-                                styling {
-                                    /*
-                                    css("--table-header-background-color: ${Theme().colors.primary.highlight}")
-                                    css("--table-header-foreground-color: ${Theme().colors.primary.highlightContrast}")
-
-                                     */
-                                    css("--table-sorting-selected-background-color: ${Theme().colors.primary.base}")
-                                    css("--table-sorting-selected-foreground-color: ${Theme().colors.primary.baseContrast}")
-                                    //background { color { primary.highlight } }
-                                    //color { primary.highlightContrast }
-                                    fontWeight { normal }
-                                }
                                 content { column ->
                                     +column.headerName
                                 }
                             }
                             width { max("2fr") }
-                            content { _, _, rowStore, _ ->
+                            content { _, _, rowStore ->
                                 rowStore.let { person ->
                                     val street = person.sub(personAddressLens + streetLens)
                                     val houseNumber = person.sub(personAddressLens + houseNumberLens)
@@ -1672,12 +1636,12 @@ fun RenderContext.tableDemo() {
                         // IDEA: Grouping of columns for saving column space
                         // No semantic meaning, but visibility improvements
                         //group("Contact") {
-                        column("Phone") {
+                        column(title = "Phone") {
                             lens(phoneLens)
                             sorting { disabled }
                         }
-                        column("Mobile") { lens(mobileLens) }
-                        column("E-Mail") {
+                        column(title = "Mobile") { lens(mobileLens) }
+                        column(title = "E-Mail") {
                             lens(emailLens)
                             width { minmax("2fr") }
                         }
