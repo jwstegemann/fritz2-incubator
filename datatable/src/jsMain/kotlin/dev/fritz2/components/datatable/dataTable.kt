@@ -11,11 +11,9 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.Lenses
 import dev.fritz2.styling.StyleClass
-import dev.fritz2.styling.name
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.*
-import dev.fritz2.styling.whenever
 import kotlinx.coroutines.flow.*
 import kotlin.collections.Map
 
@@ -23,9 +21,9 @@ import kotlin.collections.Map
 //  Add specific interface and implementation into the original fritz2's theme!
 interface DataTableStyles {
     val headerColors: ColorScheme
-    val columnColors: ColorScheme
-    val headerStyle: Style<BasicParams>
-    val columnStyle: BasicParams.(value: IndexedValue<Any>) -> Unit
+    val columnColors: List<ColorScheme>
+    val headerStyle: BasicParams.(sorting: Sorting) -> Unit
+    val columnStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
     val sorterStyle: Style<BasicParams>
 }
 
@@ -36,8 +34,21 @@ class DataTableTheme : DefaultTheme() {
         override val headerColors: ColorScheme
             get() = colors.primary
 
-        override val columnColors: ColorScheme
-            get() = ColorScheme(colors.gray100, colors.gray700, colors.gray300, colors.gray900)
+        override val columnColors: List<ColorScheme>
+            get() = listOf(
+                ColorScheme(
+                    colors.gray100,
+                    colors.gray700,
+                    colors.secondary.highlight,
+                    colors.secondary.highlightContrast
+                ),
+                ColorScheme(
+                    colors.gray300,
+                    colors.gray900,
+                    colors.secondary.base,
+                    colors.secondary.baseContrast
+                )
+            )
 
         private val basic: Style<BasicParams> = {
             paddings {
@@ -47,10 +58,15 @@ class DataTableTheme : DefaultTheme() {
             }
         }
 
-        override val headerStyle: Style<BasicParams>
-            get() = {
-                background { color { headerColors.base } }
-                color { headerColors.baseContrast }
+        override val headerStyle: BasicParams.(sorting: Sorting) -> Unit
+            get() = { sorting ->
+                if (sorting == Sorting.ASC || sorting == Sorting.DESC) {
+                    background { color { headerColors.highlight } }
+                    color { headerColors.highlightContrast }
+                } else {
+                    background { color { headerColors.base } }
+                    color { headerColors.baseContrast }
+                }
                 verticalAlign { middle }
                 fontSize { normal }
                 position { relative {} }
@@ -64,21 +80,37 @@ class DataTableTheme : DefaultTheme() {
                 }
             }
 
-        override val columnStyle: BasicParams.(value: IndexedValue<Any>) -> Unit
-            get() = { (index, _) ->
-                if (index % 2 == 1) {
-                    background { color { columnColors.base } }
-                    color { columnColors.baseContrast }
-                } else {
-                    background { color { columnColors.highlight } }
-                    color { columnColors.highlightContrast }
-                }
+        override val columnStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
+            get() = { (index, item) ->
                 basic()
+                with((index + 1) % 2) {
+                    if (item.selected) {
+                        background { color { columnColors[this@with].highlight } }
+                        color { columnColors[this@with].highlightContrast }
+                    } else {
+                        background { color { columnColors[this@with].base } }
+                        color { columnColors[this@with].baseContrast }
+                    }
+                }
                 borders {
                     right {
                         width { "1px" }
                         style { solid }
-                        color { columnColors.highlight }
+                        color { columnColors[1].base }
+                    }
+                }
+                if (item.sorting == Sorting.ASC || item.sorting == Sorting.DESC) {
+                    borders {
+                        right {
+                            color { headerColors.base }
+                            width { normal }
+                            style { solid }
+                        }
+                        left {
+                            color { headerColors.base }
+                            width { normal }
+                            style { solid }
+                        }
                     }
                 }
             }
@@ -112,6 +144,8 @@ enum class SelectionMode {
     Multi
 }
 
+data class StatefulItem<T>(val item: T, val selected: Boolean, val sorting: Sorting)
+
 @Lenses
 data class Column<T>(
     val id: String, // must be unique!
@@ -123,9 +157,9 @@ data class Column<T>(
     val position: Int = 0,
     val sorting: Sorting = Sorting.NONE,
     val sortBy: Comparator<T>? = null,
-    val styling: BasicParams.(value: IndexedValue<T>) -> Unit = { _ -> },
+    val styling: BasicParams.(value: IndexedValue<StatefulItem<T>>) -> Unit = { _ -> },
     val content: Td.(
-        value: IndexedValue<T>,
+        value: IndexedValue<StatefulItem<T>>,
         cellStore: Store<String>?,
         rowStore: SubStore<List<T>, List<T>, T>
     ) -> Unit,
@@ -285,8 +319,25 @@ data class State(
 class StateStore<T, I>(private val sortingPlanReducer: SortingPlanReducer) : RootStore<State>(
     State(emptyList(), emptyList())
 ) {
-    fun renderingData(component: TableComponent<T, I>) =
+    fun renderingHeaderData(component: TableComponent<T, I>) =
         data.map { it.orderedColumnsWithSorting(component.columns.value.columns) }
+
+    fun renderingRowsData(component: TableComponent<T, I>) = component.dataStore.data.combine(data) { data, state ->
+        component.options.value.sorting.value.sorter.value.sortedBy(
+            data,
+            state.columnSortingPlan(component.columns.value.columns)
+        ).withIndex().toList()
+    }
+
+    fun renderingCellsData(component: TableComponent<T, I>, index: Int, row: T, selected: Flow<Boolean>) =
+        renderingHeaderData(component).combine(selected) { columns, sel ->
+            columns.map { (column, sorting) ->
+                column to IndexedValue(
+                    index,
+                    StatefulItem(row, sel, sorting.strategy)
+                )
+            }
+        }
 
     val sortingChanged = handle { state, activated: ColumnIdSorting ->
         state.copy(sortingPlan = sortingPlanReducer.reduce(state.sortingPlan, activated))
@@ -300,6 +351,8 @@ class StateStore<T, I>(private val sortingPlanReducer: SortingPlanReducer) : Roo
 class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<List<T>>(emptyList()) {
 
     val selectedData = data.drop(1)
+
+    fun isDataRowSelected(item: T) = data.map { selectedRows -> selectedRows.contains(item) }
 
     val syncHandler = handle<List<T>> { old, allItems ->
         old.mapNotNull { oldItem -> allItems.firstOrNull { rowIdProvider(it) == rowIdProvider(oldItem) } }
@@ -700,11 +753,11 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 sortBy(compareBy(*expressions))
             }
 
-            val styling = ComponentProperty<BasicParams.(value: IndexedValue<T>) -> Unit> { }
+            val styling = ComponentProperty<BasicParams.(value: IndexedValue<StatefulItem<T>>) -> Unit> { }
 
             val content =
                 ComponentProperty<Td.(
-                    value: IndexedValue<T>,
+                    value: IndexedValue<StatefulItem<T>>,
                     cellStore: Store<String>?,
                     rowStore: SubStore<List<T>, List<T>, T>
                 ) -> Unit>
@@ -714,7 +767,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         val columns: MutableMap<String, Column<T>> = mutableMapOf()
 
         fun column(
-            styling: BasicParams.(value: IndexedValue<T>) -> Unit = {},
+            styling: BasicParams.(value: IndexedValue<StatefulItem<T>>) -> Unit = {},
             expression: TableColumnContext<T>.() -> Unit
         ) {
             TableColumnContext<T>().apply(expression).also {
@@ -725,7 +778,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         }
 
         fun column(
-            styling: BasicParams.(value: IndexedValue<T>) -> Unit = {},
+            styling: BasicParams.(value: IndexedValue<StatefulItem<T>>) -> Unit = {},
             title: String,
             expression: TableColumnContext<T>.() -> Unit
         ) {
@@ -737,12 +790,15 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
             }.build().also { columns[it.id] = it }
         }
 
-        val styling = ComponentProperty<BoxParams.(IndexedValue<T>) -> Unit> { }
+        val styling = ComponentProperty<BoxParams.(IndexedValue<StatefulItem<T>>) -> Unit> { }
     }
 
     val columns = ComponentProperty(TableColumnsContext<T>())
 
-    fun columns(styling: BoxParams.(IndexedValue<T>) -> Unit = {}, expression: TableColumnsContext<T>.() -> Unit) {
+    fun columns(
+        styling: BoxParams.(IndexedValue<StatefulItem<T>>) -> Unit = {},
+        expression: TableColumnsContext<T>.() -> Unit
+    ) {
         columns.value.apply(expression).also {
             it.styling(styling)
         }
@@ -755,17 +811,6 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
             .map { (a, b) -> a to b }
             .toMap()
         )
-    }
-
-    val selectedRowStyleClass = ComponentProperty(
-        staticStyle(
-            "selectedRow",
-            "td { background-color: ${Theme().colors.secondary.base} !important; }"
-        )
-    )
-
-    fun selectedRowStyle(value: Style<BasicParams>) {
-        selectedRowStyleClass(staticStyle("customSelectedRow") { value() })
     }
 
     val selectionStore: RowSelectionStore<T, I> = RowSelectionStore(rowIdProvider)
@@ -1082,10 +1127,10 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 styling()
             }) {
                 tr {
-                    component.stateStore.renderingData(component)
+                    component.stateStore.renderingHeaderData(component)
                         .renderEach(component.columnStateIdProvider) { (column, sorting) ->
                             (::th.styled(column.headerStyling) {
-                                headerStyle()
+                                headerStyle(sorting.strategy)
                                 component.header.value.styling.value()
                             })  {
                                 flexBox({
@@ -1104,7 +1149,9 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                                                 sorting.strategy
                                             )
                                         } else if (column.sorting != Sorting.DISABLED) {
-                                            component.options.value.sorting.value.renderer.value.renderSortingLost(this)
+                                            component.options.value.sorting.value.renderer.value.renderSortingLost(
+                                                this
+                                            )
                                         } else {
                                             component.options.value.sorting.value.renderer.value.renderSortingDisabled(
                                                 this
@@ -1132,37 +1179,41 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
             (::tbody.styled {
                 styling()
             }) {
-                component.dataStore.data.combine(component.stateStore.data) { data, state ->
-                    component.options.value.sorting.value.sorter.value.sortedBy(
-                        data,
-                        state.columnSortingPlan(component.columns.value.columns)
-                    ).withIndex().toList()
-                }.renderEach(IndexedValue<T>::hashCode) { (index, rowData) ->
-                    val rowStore = component.dataStore.sub(rowData, rowIdProvider)
-                    val selected = component.selectionStore.data.map { selectedRows ->
-                        selectedRows.contains(rowStore.current)
-                    }
-                    tr {
-                        className(component.selectedRowStyleClass.value.whenever(selected).name)
-                        selection.value.strategy.value?.manageSelectionByRowEvents(component, rowStore, this)
-                        dblclicks.events.map { rowStore.current } handledBy component.selectionStore.dbClickedRow
-                        component.stateStore.data.map { state -> state.order.mapNotNull { component.columns.value.columns[it] } }
-                            .renderEach { column ->
-                                (::td.styled {
-                                    columnStyle(this, IndexedValue(index, rowData as Any))
-                                    columns.value.styling.value(this, IndexedValue(index, rowData))
-                                    column.styling(this, IndexedValue(index, rowData))
-                                }) {
-                                    column.content(
-                                        this,
-                                        IndexedValue(index, rowData),
-                                        if (column.lens != null) rowStore.sub(column.lens) else null,
-                                        rowStore,
-                                    )
+                component.stateStore.renderingRowsData(component)
+                    .renderEach(IndexedValue<T>::hashCode) { (index, rowData) ->
+                        val rowStore = component.dataStore.sub(rowData, rowIdProvider)
+                        val isSelected = selectionStore.isDataRowSelected(rowStore.current)
+                        tr {
+                            selection.value.strategy.value?.manageSelectionByRowEvents(component, rowStore, this)
+                            dblclicks.events.map { rowStore.current } handledBy component.selectionStore.dbClickedRow
+                            component.stateStore.renderingCellsData(component, index, rowData, isSelected)
+                                .renderEach { (column, statefulIndex) ->
+                                    (::td.styled {
+                                        columnStyle(
+                                            this,
+                                            // Can't just be copied, as Kotlin does not allow a cast within copy!
+                                            IndexedValue(
+                                                index,
+                                                StatefulItem(
+                                                    rowData as Any, // cast necessary, as theme can't depend on ``T``!
+                                                    statefulIndex.value.selected,
+                                                    statefulIndex.value.sorting
+                                                )
+                                            )
+                                        )
+                                        columns.value.styling.value(this, statefulIndex)
+                                        column.styling(this, statefulIndex)
+                                    }) {
+                                        column.content(
+                                            this,
+                                            statefulIndex,
+                                            if (column.lens != null) rowStore.sub(column.lens) else null,
+                                            rowStore,
+                                        )
+                                    }
                                 }
-                            }
+                        }
                     }
-                }
             }
         }
     }

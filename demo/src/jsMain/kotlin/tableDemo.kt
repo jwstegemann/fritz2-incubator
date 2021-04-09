@@ -1515,18 +1515,19 @@ fun RenderContext.tableDemo() {
 
                     // We need this as common cell style for *all* columns and for passing it into inputField of
                     // name editing column -> so we centralize it by a val!
-                    val basicCellStyle: (IndexedValue<Person>) -> IndexBasedStyling<Person> = { rowIndex ->
-                        if (rowIndex.value.fullName.contains("c", ignoreCase = true)) {
-                            oddEven<Person> {
-                                odd { background { color { "orchid" } } }
-                                even { background { color { "plum" } } }
-                            } and always { color { "white" } }
-                        } else
-                            oddEven<Person> {
-                                odd { background { color { "peachpuff" } } }
-                                even { background { color { "papayawhip" } } }
-                            } and always { color { "black" } }
-                    }
+                    val basicCellStyle: (IndexedValue<StatefulItem<Person>>) -> IndexBasedStyling<StatefulItem<Person>> =
+                        { rowIndex ->
+                            if (rowIndex.value.item.fullName.contains("c", ignoreCase = true)) {
+                                oddEven<StatefulItem<Person>> {
+                                    odd { background { color { "orchid" } } }
+                                    even { background { color { "plum" } } }
+                                } and always { color { "white" } }
+                            } else
+                                oddEven<StatefulItem<Person>> {
+                                    odd { background { color { "peachpuff" } } }
+                                    even { background { color { "papayawhip" } } }
+                                } and always { color { "black" } }
+                        }
 
                     // As first parameter to ``columns`` one can optionally pass now styling definitions.
                     // This resembles the common API design of components factory functions.
@@ -1542,7 +1543,8 @@ fun RenderContext.tableDemo() {
                                 }
                             }
                         }
-                    }*/) {
+                    }*/
+                    ) {
                         column(title = "ID") {
                             lens(personIdLens + Formats.intFormat)
                             width { minmax("80px") }
@@ -1562,13 +1564,23 @@ fun RenderContext.tableDemo() {
                         column(title = "Name") {
                             lens(fullNameLens)
                             content { rowIndex, _, rowStore ->
+                                val nameStore = rowStore.sub(fullNameLens)
                                 inputField({
                                     /*
                                     this as BoxParams
                                     styledByIndex(rowIndex) { basicCellStyle(rowIndex) }
                                      */
-                                }, store = rowStore.sub(fullNameLens)) {
+                                }, store = nameStore) {
                                     size { small }
+                                    events {
+                                        // a bit cumbersome, but necessary here, in order to break the update for
+                                        // the selection.
+                                        clicks.stopImmediatePropagation().events.map {
+                                            nameStore.current
+                                        } handledBy rowStore.sub(
+                                            fullNameLens
+                                        ).update
+                                    }
                                 }
                             }
                             width { min("15rem") }
@@ -1588,8 +1600,8 @@ fun RenderContext.tableDemo() {
                         // As first parameter to ``column`` one can optionally pass now styling definitions too like
                         // for ``columns``. This resembles the common API design of components factory functions.
                         // Idea: It might be better to change the order and put the title as first parameter?
-                        column({ /*(_, person) ->
-                            background { color { if (person.birthday.year < 2000) "seagreen" else "slateblue" } }
+                        column({/* (_, state) ->
+                            background { color { if (state.item.birthday.year < 2000) "seagreen" else "slateblue" } }
                             color { "white" }
                             */
                         }, title = "Birthday") {
@@ -1605,7 +1617,8 @@ fun RenderContext.tableDemo() {
                                 background { color { primary.highlight } }
                                 color { primary.highlightContrast }
                                 //fontWeight { normal }
-                            }*/) {
+                            }*/
+                            ) {
                                 title("Address")
                                 content { column ->
                                     +column.headerName
