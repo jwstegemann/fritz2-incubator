@@ -16,12 +16,30 @@ import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.theme.*
 import kotlinx.coroutines.flow.*
 import kotlin.collections.Map
+import kotlin.math.abs
 
 // TODO: Remove theme stuff, if code is moved into the fritz2 core project!
 //  Add specific interface and implementation into the original fritz2's theme!
+//  We need a solution for extending the theme without moving the table specific parts into the styling core!
+//  Some types (``Sorting`` and ``StatefulItem`` are unknown there and also should not get exposed there)
 interface DataTableStyles {
     val headerColors: ColorScheme
+
+    /**
+     * Semantic: One [ColorScheme] per row:
+     *  - base: background of the cell
+     *  - baseContrast: text color of the cell
+     *  - highlight: background of the cell if row is selected
+     *  - highlightContrast: text color of the cell if row is selected
+     *
+     *  Use cases:
+     *   - alternating (odd - even) rows
+     *   - grouping for value based categories (for example different ranges applied for visual analyzing)
+     *
+     *   Therefore a [List] fits best: Very small overhead, but clear semantics and arbitrary coloring is possible.
+     */
     val columnColors: List<ColorScheme>
+
     val headerStyle: BasicParams.(sorting: Sorting) -> Unit
     val columnStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
     val sorterStyle: Style<BasicParams>
@@ -46,6 +64,8 @@ class DataTableTheme : DefaultTheme() {
                     colors.gray300,
                     colors.gray900,
                     colors.secondary.base,
+                    // weak contrast to backgroundColor -> inputFields not readable!
+                    // fontColor fits quite good -> possible semantic between "contrast" props and this specific field?
                     colors.secondary.baseContrast
                 )
             )
@@ -91,12 +111,12 @@ class DataTableTheme : DefaultTheme() {
                         background { color { columnColors[this@with].base } }
                         color { columnColors[this@with].baseContrast }
                     }
-                }
-                borders {
-                    right {
-                        width { "1px" }
-                        style { solid }
-                        color { columnColors[1].base }
+                    borders {
+                        right {
+                            width { "1px" }
+                            style { solid }
+                            color { columnColors[abs(this@with - 1)].base }
+                        }
                     }
                 }
                 if (item.sorting == Sorting.ASC || item.sorting == Sorting.DESC) {
@@ -131,6 +151,9 @@ class DataTableTheme : DefaultTheme() {
 
 // TODO: End of provisional Theming stuff
 
+/**
+ * Representation of the different sorting status.
+ */
 enum class Sorting {
     DISABLED,
     NONE,
@@ -138,14 +161,31 @@ enum class Sorting {
     DESC
 }
 
+/**
+ * Representation of the selection possibilities.
+ */
 enum class SelectionMode {
     None,
     Single,
     Multi
 }
 
+/**
+ * This class is meant for combining the data of one row with the current state specific properties like the
+ * sorting strategy or whether the row is currently selected.
+ */
 data class StatefulItem<T>(val item: T, val selected: Boolean, val sorting: Sorting)
 
+/**
+ * Main class to define the representation of the data class ``T`` of one table column.
+ * This class mainly is the result of the DSL configuration of the datatable.
+ *
+ * Besides the main properties like the header title string or the [Lens] to grab the current [String] representation
+ * of the row data during the rendering process, one can also specify the sorting algorithm to fit the specific
+ * type (like a [Date] for example) or the appearance of the cell styling and content or the header styling and content.
+ *
+ * @see [TableColumnContext]
+ */
 @Lenses
 data class Column<T>(
     val id: String, // must be unique!
@@ -167,6 +207,11 @@ data class Column<T>(
     val headerContent: Div.(column: Column<T>) -> Unit
 )
 
+/**
+ * Wrapping class to group the id of a [Column] with the sorting strategy.
+ * This is the base for the type ``T`` independent [SortingPlan] which itself is necessary for the *internal*
+ * [State].
+ */
 data class ColumnIdSorting(
     val id: String?,
     val strategy: Sorting = Sorting.NONE
@@ -178,16 +223,100 @@ data class ColumnIdSorting(
     }
 }
 
+/**
+ * This alias expresses the sorting plan, which is the *ordered* list of column ids paired with their strategies.
+ * This is the base concept for the sorting held within a [State] object and used for the [SortingRenderer]
+ * in order to create a new plan based upon user interaction (change the direction, change the column to be sorted)
+ *
+ * There are three different interfaces on that the separate sorting functionalities are implemented:
+ *  1. [SortingPlanReducer]: create a plan of columns to be sorted in a specific direction based upon the former
+ *                           plan and the triggering user action
+ *  2. [RowSorter]: do the actual sorting based upon the above plan (slightly transformed to typed column instead of ids)
+ *  3. [SortingRenderer]: render the appropriate UI for the sorting actions in the header columns
+ *
+ * Here is the big picture visualized:
+ * ```
+ *               +-------------------+      +------------------------+
+ *               | StateStore        |      | (1) SortingPlanReducer |
+ *               +-------------------+      +------------------------+
+ * User Input -> | sortingChanged    | ---> | uses State.SortingPLan |---+
+ *            +--| renderingRowsData |      | to create new Plan     |   |
+ *            |  +-------------------+      +------------------------+   |
+ *            |          |                                               |
+ *            |          v                                               |
+ *            |   +-------------------+                                  |
+ *            |   | State             |<---------------------------------+
+ *            |   +-------------------+
+ *            +<--| SortingPlan       |
+ *            |   +-------------------+                        +---------------+
+ *            +-->| columnSortingPlan |--(ColumnSortingPlan)-->| (2) RowSorter |---> Rendering (sorted rows of table)
+ *                +-------------------+                        +---------------+
+ *
+ *            +---------------------------+
+ *            | (3) SortingRenderer       |
+ *            +---------------------------+
+ *            | renders the sorting icons |
+ *            | within the header column  |
+ *            +---------------------------+
+ * ```
+ * @see ColumnSortingPlan
+ * @see SortingPlanReducer
+ * @see RowSorter
+ * @see SortingRenderer
+ *
+ */
 typealias SortingPlan = List<ColumnIdSorting>
+
+/**
+ * This alias expresses the grouping of a [Column] paired with its sorting strategy.
+ * Together with the [SortingPlan] this represents the *foundation* of the sorting mechanisms:
+ * Based upon the [SortingPlan] this plan is created from the given [Columns] of a datatable and is then used to
+ * do the actual sorting within a [RowSorter] implementation.
+ *
+ * There are three different interfaces on that the separate sorting functionalities are implemented:
+ *  1. [SortingPlanReducer]: create a plan of columns to be sorted in a specific direction based upon the former
+ *                           plan and the triggering user action
+ *  2. [RowSorter]: do the actual sorting based upon the above plan (slightly transformed to typed column instead of ids)
+ *  3. [SortingRenderer]: render the appropriate UI for the sorting actions in the header columns
+ *
+ * Here is the big picture visualized:
+ * ```
+ *               +-------------------+      +------------------------+
+ *               | StateStore        |      | (1) SortingPlanReducer |
+ *               +-------------------+      +------------------------+
+ * User Input -> | sortingChanged    | ---> | uses State.SortingPLan |---+
+ *            +--| renderingRowsData |      | to create new Plan     |   |
+ *            |  +-------------------+      +------------------------+   |
+ *            |          |                                               |
+ *            |          v                                               |
+ *            |   +-------------------+                                  |
+ *            |   | State             |<---------------------------------+
+ *            |   +-------------------+
+ *            +<--| SortingPlan       |
+ *            |   +-------------------+                        +---------------+
+ *            +-->| columnSortingPlan |--(ColumnSortingPlan)-->| (2) RowSorter |---> Rendering (sorted rows of table)
+ *                +-------------------+                        +---------------+
+ *
+ *            +---------------------------+
+ *            | (3) SortingRenderer       |
+ *            +---------------------------+
+ *            | renders the sorting icons |
+ *            | within the header column  |
+ *            +---------------------------+
+ * ```
+ * @see SortingPlan
+ * @see SortingPlanReducer
+ * @see RowSorter
+ * @see SortingRenderer
+ */
 typealias ColumnSortingPlan<T> = List<Pair<Column<T>, Sorting>>
 
-/*
-Sortieren basiert auf drei unabhängigen Komponenten:
-- Sortierkonfiguration + Änderung [fehlt noch!] SortingPlanReducer: StateStore hält SortingPlan und berechnet neuen, wenn Column (per Id) aktiviert wird
-- Rendern des Sortierbedienelements [SortingRenderer] rendert in Tabellenkopf Sorting Steuerelemente / Anzeigen.
-- Durchführung der Sortierung [Sorter<T>] arbeitet nach SortingPlan
- */
 
+/**
+ * This interface defines the actual sorting action.
+ *
+ * @see ColumnSortingPlan
+ */
 interface RowSorter<T> {
     fun sortedBy(
         rows: List<T>,
@@ -195,6 +324,12 @@ interface RowSorter<T> {
     ): List<T>
 }
 
+/**
+ * This class implements the sorting with at most *one* column as sorting criterion, that is at most one column
+ * within the [ColumnSortingPlan].
+ *
+ * If no column is present in the plan, no sorting will take place!
+ */
 class OneColumnSorter<T> : RowSorter<T> {
     override fun sortedBy(
         rows: List<T>,
@@ -241,12 +376,30 @@ class OneColumnSorter<T> : RowSorter<T> {
     }
 }
 
+/**
+ * This interface bundles the methods to render the appropriate UI elements for the sorting actions within the
+ * header column of a table.
+ *
+ * The [DataTable] takes care of calling the fitting method based upon the current state of a column's sorting
+ * strategy.
+ *
+ * @see SortingPlan
+ */
 interface SortingRenderer {
     fun renderSortingActive(context: Div, sorting: Sorting)
     fun renderSortingLost(context: Div)
     fun renderSortingDisabled(context: Div)
 }
 
+/**
+ * This implementation of a [SortingRenderer] creates an icon based UI for choosing the sorting of a data table.
+ *  - There is an up-down-arrow icon, if the column is not sorted, but *sortable*
+ *  - There is an down-arrow icon, if the data is sorted descending by the current column
+ *  - There is an up-arrow icon, if the data is sorted ascending by the current column
+ *  - There is no icon, if sorting is disabled for this column
+ *
+ *  @see SortingRenderer
+ */
 class SingleArrowSortingRenderer : SortingRenderer {
     override fun renderSortingActive(context: Div, sorting: Sorting) {
         context.apply {
@@ -268,10 +421,22 @@ class SingleArrowSortingRenderer : SortingRenderer {
     }
 }
 
+/**
+ * This interface defines the reducing process for the sorting plan, that is the creation of a new plan based upon
+ * a user input, like clicking on symbol or button ([SingleArrowSortingRenderer]).
+ *
+ * @see SortingPlan
+ */
 interface SortingPlanReducer {
     fun reduce(sortingPlan: SortingPlan, activated: ColumnIdSorting): SortingPlan
 }
 
+/**
+ * This [SortingPlanReducer] implementation defines the logic to generate a plan with at most *one* column for sorting.
+ * This perfectly matches with the [OneColumnSorter] implementation for doing the sorting.
+ *
+ * @see SortingPlan
+ */
 class TogglingSortingPlanReducer : SortingPlanReducer {
     override fun reduce(sortingPlan: SortingPlan, activated: ColumnIdSorting): SortingPlan =
         if (activated.strategy == Sorting.DISABLED) {
@@ -1079,8 +1244,8 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 zIndex { "1" }
             }, baseClass, "$id-fixedHeader", "$prefix-fixedHeader") {}){
                 attr("style", gridCols)
-                renderTHead({}, this)
-                renderTBody({
+                renderHeader({}, this)
+                renderRows({
                     css("visibility:hidden")
                 }, rowIdProvider, this)
             }
@@ -1092,10 +1257,10 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 height { "fit-content" }
             }, baseClass, id, prefix) {}){
                 attr("style", gridCols)
-                renderTHead({
+                renderHeader({
                     css("visibility:hidden")
                 }, this)
-                renderTBody({}, rowIdProvider, this)
+                renderRows({}, rowIdProvider, this)
             }
         }
     }
@@ -1111,13 +1276,13 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         RenderContext.apply {
             (::table.styled({ }, baseClass, id, prefix) {}){
                 attr("style", gridCols)
-                renderTHead({}, this)
-                renderTBody({}, rowIdProvider, this)
+                renderHeader({}, this)
+                renderRows({}, rowIdProvider, this)
             }
         }
     }
 
-    private fun renderTHead(
+    private fun renderHeader(
         styling: GridParams.() -> Unit,
         renderContext: RenderContext
     ) {
@@ -1169,7 +1334,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         }
     }
 
-    private fun <I> renderTBody(
+    private fun <I> renderRows(
         styling: GridParams.() -> Unit,
         rowIdProvider: (T) -> I,
         renderContext: RenderContext
