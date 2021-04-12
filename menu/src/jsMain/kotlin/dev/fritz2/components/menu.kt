@@ -142,7 +142,7 @@ open class MenuComponent : Component<Unit> {
             )
             width(
                 sm = { "100%" },
-                md = { minContent }
+                md = { maxContent }
             )
             zIndex { overlay }
 
