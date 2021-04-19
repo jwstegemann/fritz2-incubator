@@ -231,33 +231,58 @@ data class ColumnIdSorting(
  * There are three different interfaces on that the separate sorting functionalities are implemented:
  *  1. [SortingPlanReducer]: create a plan of columns to be sorted in a specific direction based upon the former
  *                           plan and the triggering user action
- *  2. [RowSorter]: do the actual sorting based upon the above plan (slightly transformed to typed column instead of ids)
+ *  2. [RowSorter]: do the actual sorting work based upon the above plan (slightly transformed to typed column
+ *                  instead of plain ids)
  *  3. [SortingRenderer]: render the appropriate UI for the sorting actions in the header columns
  *
  * Here is the big picture visualized:
  * ```
- *               +-------------------+      +------------------------+
- *               | StateStore        |      | (1) SortingPlanReducer |
- *               +-------------------+      +------------------------+
- * User Input -> | sortingChanged    | ---> | uses State.SortingPLan |---+
- *            +--| renderingRowsData |      | to create new Plan     |   |
- *            |  +-------------------+      +------------------------+   |
- *            |          |                                               |
- *            |          v                                               |
- *            |   +-------------------+                                  |
- *            |   | State             |<---------------------------------+
- *            |   +-------------------+
- *            +<--| SortingPlan       |
- *            |   +-------------------+                        +---------------+
- *            +-->| columnSortingPlan |--(ColumnSortingPlan)-->| (2) RowSorter |---> Rendering (sorted rows of table)
- *                +-------------------+                        +---------------+
+ *                          +-----------------------------------------------------------------+
+ *                          |                                   (emits new state)             |
+ *                          |                                                                 |
+ *                          v                                                                 |
+ *    +------------------------------------------+                                            |
+ *    |                  State                   |                                            |
+ *    +------------------------------------------+                                            |
+ *    | val sortingPlan: SortingPlan             |                                            |
+ *    +------------------------------------------+                                            |
+ *    | fun columnSortingPlan: ColumnSortingPlan |                                            |
+ *    +------------------------------------------+                                            |
+ *                          ^                                                                 |
+ *                          |                          +----------------------------------+   |
+ * User action as input:    |(owns)              +---->|      SortingPlanReducer (1)      |---+
+ * (Column ID+Strategy)     |                    |     +----------------------------------+
+ *     |                    |                    |     | Creates a new SortingPlan based  |
+ *     |     +-----------------------------+     |     | upon the former plan, the newly  |
+ *     |     |         StateStore          |     |     | column ID and its sorting        |
+ *     |     +-----------------------------+     |     | strategy (asc, desc, none)       |
+ *     +---->| val sortingChanged: Handler |-----+     +----------------------------------+
+ *           +-----------------------------+
+ *     +---->| fun renderingRowsData       |-----+
+ *     |     +-----------------------------+     |     +----------------------------------+
+ *     |                                         +---->|           RowSorter (2)          |
+ *     |                                               +----------------------------------+
+ *     |                                               | Takes the current rows and sort  |
+ * TableComponent                                      | them according to the column     |
+ * .renderRows()                                       | based sorting plan.              |
+ *                                                     | So the raw ``sortingPlan``       |
+ *                                                     | field of the state object must   |
+ *                                                     | be  enriched before with the     |
+ *                                                     | actual ``Column`` objects by     |
+ *                                                     | the ``columnSoftingPlan``        |
+ *                                                     | function.                        |
+ *                                                     +----------------------------------+
  *
- *            +---------------------------+
- *            | (3) SortingRenderer       |
- *            +---------------------------+
- *            | renders the sorting icons |
- *            | within the header column  |
- *            +---------------------------+
+ *
+ *                                                     +----------------------------------+
+ * TableComponent ------------------------------------>|        SortingRenderer (3)       |
+ * .renderHeader()                                     +----------------------------------+
+ *                                                     | Renders the UI elements          |
+ *                                                     | (icons eg.) for configuring      |
+ *                                                     | and changing the sorting state.  |
+ *                                                     +----------------------------------+
+ *
+ * [Edit](https://textik.com/#f3fc13858b89df9b)
  * ```
  * @see ColumnSortingPlan
  * @see SortingPlanReducer
@@ -276,33 +301,58 @@ typealias SortingPlan = List<ColumnIdSorting>
  * There are three different interfaces on that the separate sorting functionalities are implemented:
  *  1. [SortingPlanReducer]: create a plan of columns to be sorted in a specific direction based upon the former
  *                           plan and the triggering user action
- *  2. [RowSorter]: do the actual sorting based upon the above plan (slightly transformed to typed column instead of ids)
+ *  2. [RowSorter]: do the actual sorting work based upon the above plan (slightly transformed to typed column
+ *                  instead of plain ids)
  *  3. [SortingRenderer]: render the appropriate UI for the sorting actions in the header columns
  *
  * Here is the big picture visualized:
  * ```
- *               +-------------------+      +------------------------+
- *               | StateStore        |      | (1) SortingPlanReducer |
- *               +-------------------+      +------------------------+
- * User Input -> | sortingChanged    | ---> | uses State.SortingPLan |---+
- *            +--| renderingRowsData |      | to create new Plan     |   |
- *            |  +-------------------+      +------------------------+   |
- *            |          |                                               |
- *            |          v                                               |
- *            |   +-------------------+                                  |
- *            |   | State             |<---------------------------------+
- *            |   +-------------------+
- *            +<--| SortingPlan       |
- *            |   +-------------------+                        +---------------+
- *            +-->| columnSortingPlan |--(ColumnSortingPlan)-->| (2) RowSorter |---> Rendering (sorted rows of table)
- *                +-------------------+                        +---------------+
+ *                          +-----------------------------------------------------------------+
+ *                          |                                   (emits new state)             |
+ *                          |                                                                 |
+ *                          v                                                                 |
+ *    +------------------------------------------+                                            |
+ *    |                  State                   |                                            |
+ *    +------------------------------------------+                                            |
+ *    | val sortingPlan: SortingPlan             |                                            |
+ *    +------------------------------------------+                                            |
+ *    | fun columnSortingPlan: ColumnSortingPlan |                                            |
+ *    +------------------------------------------+                                            |
+ *                          ^                                                                 |
+ *                          |                          +----------------------------------+   |
+ * User action as input:    |(owns)              +---->|      SortingPlanReducer (1)      |---+
+ * (Column ID+Strategy)     |                    |     +----------------------------------+
+ *     |                    |                    |     | Creates a new SortingPlan based  |
+ *     |     +-----------------------------+     |     | upon the former plan, the newly  |
+ *     |     |         StateStore          |     |     | column ID and its sorting        |
+ *     |     +-----------------------------+     |     | strategy (asc, desc, none)       |
+ *     +---->| val sortingChanged: Handler |-----+     +----------------------------------+
+ *           +-----------------------------+
+ *     +---->| fun renderingRowsData       |-----+
+ *     |     +-----------------------------+     |     +----------------------------------+
+ *     |                                         +---->|           RowSorter (2)          |
+ *     |                                               +----------------------------------+
+ *     |                                               | Takes the current rows and sort  |
+ * TableComponent                                      | them according to the column     |
+ * .renderRows()                                       | based sorting plan.              |
+ *                                                     | So the raw ``sortingPlan``       |
+ *                                                     | field of the state object must   |
+ *                                                     | be  enriched before with the     |
+ *                                                     | actual ``Column`` objects by     |
+ *                                                     | the ``columnSoftingPlan``        |
+ *                                                     | function.                        |
+ *                                                     +----------------------------------+
  *
- *            +---------------------------+
- *            | (3) SortingRenderer       |
- *            +---------------------------+
- *            | renders the sorting icons |
- *            | within the header column  |
- *            +---------------------------+
+ *
+ *                                                     +----------------------------------+
+ * TableComponent ------------------------------------>|        SortingRenderer (3)       |
+ * .renderHeader()                                     +----------------------------------+
+ *                                                     | Renders the UI elements          |
+ *                                                     | (icons eg.) for configuring      |
+ *                                                     | and changing the sorting state.  |
+ *                                                     +----------------------------------+
+ *
+ * [Edit](https://textik.com/#f3fc13858b89df9b)
  * ```
  * @see SortingPlan
  * @see SortingPlanReducer
@@ -460,7 +510,15 @@ class TogglingSortingPlanReducer : SortingPlanReducer {
 }
 
 /**
- * Central type for dynamic column configuration state
+ * Central class for the *dynamic* aspects of the column configuration, so the actual *state* of column meta
+ * data in contrast to the row data!
+ *
+ * Currently the order of the columns (which includes visibility!) and the [SortingPlan] are managed.
+ *
+ * There are two helper methods to ease the [State] handling:
+ * - [orderedColumnsWithSorting]: Used for generating the needed structure for the header rendering
+ * - [columnSortingPlan]: enriches the pure [SortingPlan] with the actual [Column]s, which is needed by the
+ *                        [RowSorter] interface instead of the pure IDs only.
  */
 data class State(
     val order: List<String>,
@@ -481,6 +539,17 @@ data class State(
         sortingPlan.map { (colId, sorting) -> columns[colId]!! to sorting }
 }
 
+/**
+ * Store for the column configuration that holds a [State] object.
+ * It does **not** manage the actual data of the table; this is done by [RowSelectionStore]!
+ *
+ * Currently only one handler ([sortingChanged]) is offered, that calculates the new [SortingPlan] based upon the
+ * selected [Column]-Id and its [Sorting] strategy. The required [SortingPlanReducer] is used to to the actual
+ * calculation.
+ *
+ * On top there are some helper functions, that produces the needed [Flow]s of data for the different rendering
+ * aspects: One for the header, one for the rows and one for the cells of a row.
+ */
 class StateStore<T, I>(private val sortingPlanReducer: SortingPlanReducer) : RootStore<State>(
     State(emptyList(), emptyList())
 ) {
@@ -512,7 +581,11 @@ class StateStore<T, I>(private val sortingPlanReducer: SortingPlanReducer) : Roo
     //  Example for UI for changing: https://tailwindcomponents.com/component/table-ui-with-tailwindcss-and-alpinejs
 }
 
-
+/**
+ * This store manages the actual data of the data table.
+ * It does **not** manage the state of the columns (configuration meta data like sorting, order and so on); this is
+ * done by [StateStore]!
+ */
 class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<List<T>>(emptyList()) {
 
     val selectedData = data.drop(1)
