@@ -1499,20 +1499,6 @@ fun RenderContext.tableDemo() {
                          */
                     }
 
-                    // Wieso ist das nicht unter options?
-                    // oder noch besser unter selection
-                    /*
-                    selectedRowStyle {
-                        children("td") {
-                            background {
-                                color {
-                                    info.important
-                                }
-                            }
-                        }
-                    }
-                     */
-
                     // We need this as common cell style for *all* columns and for passing it into inputField of
                     // name editing column -> so we centralize it by a val!
                     val basicCellStyle: (IndexedValue<StatefulItem<Person>>) -> IndexBasedStyling<StatefulItem<Person>> =
@@ -1531,7 +1517,7 @@ fun RenderContext.tableDemo() {
 
                     // As first parameter to ``columns`` one can optionally pass now styling definitions.
                     // This resembles the common API design of components factory functions.
-                    columns(/*{ rowIndex ->
+                    columns({ /* rowIndex ->
                         styledByIndex(rowIndex) {
                             basicCellStyle(rowIndex) and odd {
                                 borders {
@@ -1543,7 +1529,8 @@ fun RenderContext.tableDemo() {
                                 }
                             }
                         }
-                    }*/
+                        */
+                    }
                     ) {
                         column(title = "ID") {
                             lens(personIdLens + Formats.intFormat)
@@ -1565,11 +1552,10 @@ fun RenderContext.tableDemo() {
                             lens(fullNameLens)
                             content { rowIndex, _, rowStore ->
                                 val nameStore = rowStore.sub(fullNameLens)
-                                inputField({
-                                    /*
+                                inputField({ /*
                                     this as BoxParams
                                     styledByIndex(rowIndex) { basicCellStyle(rowIndex) }
-                                     */
+                                    */
                                 }, store = nameStore) {
                                     size { small }
                                     events {
@@ -1599,12 +1585,10 @@ fun RenderContext.tableDemo() {
 
                         // As first parameter to ``column`` one can optionally pass now styling definitions too like
                         // for ``columns``. This resembles the common API design of components factory functions.
-                        // Idea: It might be better to change the order and put the title as first parameter?
-                        column({/* (_, state) ->
+                        column(title = "Birthday", styling = { /* (_, state) ->
                             background { color { if (state.item.birthday.year < 2000) "seagreen" else "slateblue" } }
-                            color { "white" }
-                            */
-                        }, title = "Birthday") {
+                            color { "white" } */
+                        }) {
                             lens(birthdayLens + Formats.dateFormat)
                             width { minmax("120px") }
                             sortBy(Person::birthday)

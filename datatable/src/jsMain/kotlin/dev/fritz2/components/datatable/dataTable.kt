@@ -182,9 +182,7 @@ data class StatefulItem<T>(val item: T, val selected: Boolean, val sorting: Sort
  *
  * Besides the main properties like the header title string or the [Lens] to grab the current [String] representation
  * of the row data during the rendering process, one can also specify the sorting algorithm to fit the specific
- * type (like a [Date] for example) or the appearance of the cell styling and content or the header styling and content.
- *
- * @see [TableColumnContext]
+ * type (like a Date for example) or the appearance of the cell styling and content or the header styling and content.
  */
 @Lenses
 data class Column<T>(
@@ -295,7 +293,7 @@ typealias SortingPlan = List<ColumnIdSorting>
 /**
  * This alias expresses the grouping of a [Column] paired with its sorting strategy.
  * Together with the [SortingPlan] this represents the *foundation* of the sorting mechanisms:
- * Based upon the [SortingPlan] this plan is created from the given [Columns] of a datatable and is then used to
+ * Based upon the [SortingPlan] this plan is created from the given [Column]s of a datatable and is then used to
  * do the actual sorting within a [RowSorter] implementation.
  *
  * There are three different interfaces on that the separate sorting functionalities are implemented:
@@ -430,7 +428,7 @@ class OneColumnSorter<T> : RowSorter<T> {
  * This interface bundles the methods to render the appropriate UI elements for the sorting actions within the
  * header column of a table.
  *
- * The [DataTable] takes care of calling the fitting method based upon the current state of a column's sorting
+ * The data table takes care of calling the fitting method based upon the current state of a column's sorting
  * strategy.
  *
  * @see SortingPlan
@@ -582,16 +580,23 @@ class StateStore<T, I>(private val sortingPlanReducer: SortingPlanReducer) : Roo
 }
 
 /**
- * This store manages the actual data of the data table.
+ * This store manages the selected rows of the data table.
  * It does **not** manage the state of the columns (configuration meta data like sorting, order and so on); this is
  * done by [StateStore]!
  */
 class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<List<T>>(emptyList()) {
 
+    /**
+     * The first item must always be dropped; need to find out why!
+     */
     val selectedData = data.drop(1)
 
     fun isDataRowSelected(item: T) = data.map { selectedRows -> selectedRows.contains(item) }
 
+    /**
+     * This handler can be used to synchronize the selection with the actual data of the table.
+     * If some item gets deleted, it should also disappear from the selection.
+     */
     val syncHandler = handle<List<T>> { old, allItems ->
         old.mapNotNull { oldItem -> allItems.firstOrNull { rowIdProvider(it) == rowIdProvider(oldItem) } }
     }
@@ -616,6 +621,12 @@ class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<L
         newSelection
     }
 
+    /**
+     * This handler can be used to preselect one single row for the initial rendering of the table.
+     * As the store is made to handle a [List] of rows as well as a single selection, we need this special
+     * [Flow] for preselecting a single row. For preselecting arbitrary rows, just stick to the default [update]
+     * handler!
+     */
     val updateRow = handle<T?> { _, new ->
         if (new == null) emptyList() else listOf(new)
     }
@@ -626,7 +637,18 @@ class RowSelectionStore<T, I>(private val rowIdProvider: (T) -> I) : RootStore<L
     }
 }
 
-
+/**
+ * This interface defines a strategy type in order to implement different selection mechanisms.
+ *
+ * As we have identified already two different methods for selecting rows and provide default implementations for them,
+ * it is necessary to separate the implementation from the core data table component.
+ *
+ * - [SelectionByClick]: selecting by clicking onto a row
+ * - [SelectionByCheckBox]: selection by checkbox added with an additional column
+ *
+ * And of course we can use the strategy pattern, to provide the *null object* by [NoSelection] implementation, if
+ * the selection is disabled for the table.
+ */
 interface SelectionStrategy<T, I> {
     fun manageSelectionByExtraColumn(component: TableComponent<T, I>)
     fun manageSelectionByRowEvents(
@@ -635,6 +657,13 @@ interface SelectionStrategy<T, I> {
     )
 }
 
+/**
+ * Selection strategy for disabling the selection at all.
+ *
+ * Acts as the *null object* pattern.
+ *
+ * @see [SelectionStrategy]
+ */
 class NoSelection<T, I> : SelectionStrategy<T, I> {
     override fun manageSelectionByExtraColumn(component: TableComponent<T, I>) {
         // no extra column needed -> nothing should get selected!
@@ -649,6 +678,12 @@ class NoSelection<T, I> : SelectionStrategy<T, I> {
     }
 }
 
+/**
+ * This selection strategy offers the selection via an additional checkbox per row, which is added in front of the
+ * row as artificial column.
+ *
+ * @see [SelectionStrategy]
+ */
 class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
 
     private val commonSettings: TableComponent.TableColumnsContext.TableColumnContext<T>.(
@@ -739,6 +774,11 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
     }
 }
 
+/**
+ * This selection strategy enables the selection by clicking onto a row of the table.
+ *
+ * @see [SelectionStrategy]
+ */
 class SelectionByClick<T, I> : SelectionStrategy<T, I> {
     override fun manageSelectionByExtraColumn(component: TableComponent<T, I>) {
         // no extra column needed -> selection is handled by clicks!
@@ -871,6 +911,17 @@ infix fun <T> IndexBasedStyling<T>.and(other: IndexBasedStyling<T>) =
 
 // End issue #332 items
 
+/**
+ * This class implements the core of the data table.
+ *
+ * It handles:
+ * - the rendering of the table (see all ``render`` prefixed methods)
+ * - the configuration (with sub-classes) and its DSL
+ * - the state management like the current sorting or ordering of the columns with an internal store and lots of
+ *   helper components like the whole infrastructure around the [SortingPlan]
+ * - the selection of row(s) with an internal store and the usage of [SelectionStrategy] implementations
+ * - the styling via theme and ad hoc definitions within the table column and header declarations
+ */
 open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val rowIdProvider: (T) -> I) :
     Component<Unit> {
     companion object {
