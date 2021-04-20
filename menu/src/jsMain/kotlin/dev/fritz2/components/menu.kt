@@ -7,6 +7,7 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.styling.StyleClass
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
+import dev.fritz2.styling.style
 import dev.fritz2.styling.theme.IconDefinition
 import dev.fritz2.styling.theme.Icons
 import dev.fritz2.styling.theme.Theme
@@ -144,17 +145,12 @@ open class MenuComponent : Component<Unit> {
                 sm = { "100%" },
                 md = { maxContent }
             )
-            zIndex { overlay }
 
-            background { color { neutral } }
             radius { "6px" }
-            paddings { vertical { smaller } }
             overflow(
                 sm = { hidden },
                 md = { visible }
             )
-
-            boxShadow { raised }
 
             // FIXME: Animation not working
             //opacity { "1" }
@@ -162,9 +158,17 @@ open class MenuComponent : Component<Unit> {
         }
     }
 
+    private val dropdownStyle: Style<BasicParams> = {
+        paddings { vertical { smaller } }
+        zIndex { overlay }
+        boxShadow { raised }
+        background { color { neutral } }
+    }
+
+
     private val visibilityStore = object : RootStore<Boolean>(false) {
-        val show = handle<Unit> { _, _ -> true }
-        val dismiss = handle<Unit> { _, _ -> false }
+        val show = handle { true }
+        val dismiss = handle { false }
     }
 
     val toggle = ComponentProperty<RenderContext.() -> Unit> {
@@ -219,6 +223,7 @@ open class MenuComponent : Component<Unit> {
             styling = { this as BoxParams
                 styling()
                 placement.dropdownStyle()
+                dropdownStyle()
             },
             baseClass = baseClass + staticDropdownCss,
             id = uniqueDropdownId,
@@ -369,23 +374,22 @@ data class MenuItem(
         private val staticMenuItemCss = staticStyle("menu-item") {
             width { "100%" }
             alignItems { center }
-
             radius { "6px" }
         }
+    }
 
-        private val menuItemActiveStyle: Style<FlexParams> = {
-            hover {
-                background { color { gray300 } }
-                css("filter: brightness(90%);")
-            }
+    private val menuItemActiveStyle: Style<FlexParams> = {
+        hover {
+            background { color { gray200 } }
+            css("filter: brightness(90%);")
         }
+    }
 
-        private val menuItemButtonVariant: Style<BasicParams> = {
-            fontWeight { normal }
-            color { Theme().fontColor }
-            focus {
-                boxShadow { none }
-            }
+    private val menuItemButtonVariant: Style<BasicParams> = {
+        fontWeight { normal }
+        color { Theme().fontColor }
+        focus {
+            boxShadow { none }
         }
     }
 
@@ -411,7 +415,7 @@ data class MenuItem(
                     baseClass = staticMenuItemCss,
                     styling = if (enabled) menuItemActiveStyle else ({ })
                 ) {
-                    clickButton() {
+                    clickButton {
                         icon?.let {
                             icon { def(it) }
                         }
@@ -471,13 +475,11 @@ data class MenuSubheader(
 
 class MenuDivider : MenuEntry {
 
-    companion object {
-        private val staticMenuDividerCss = staticStyle("menu-divider") {
-            width { "100%" }
-            height { "1px" }
-            margins { vertical { smaller } }
-            background { color { gray300 } }
-        }
+    private val menuDividerCss = style("menu-divider") {
+        width { "100%" }
+        height { "1px" }
+        margins { vertical { smaller } }
+        background { color { gray300 } }
     }
 
     override fun render(
@@ -488,7 +490,7 @@ class MenuDivider : MenuEntry {
         prefix: String
     ) {
         context.apply {
-            box(baseClass = staticMenuDividerCss) { }
+            box(baseClass = menuDividerCss) { }
         }
     }
 }
