@@ -1474,6 +1474,7 @@ fun RenderContext.tableDemo() {
                      */
 
                     options {
+                        hovering { active(false) }
                         //height("auto")
                         maxHeight("80vh")
                         /*
@@ -1496,6 +1497,19 @@ fun RenderContext.tableDemo() {
                                 }
                             })
                         }
+                         */
+
+                        /*
+                        hovering {
+                            style { (index, state) ->
+                                if (state.item.birthday.year < 2000) {
+                                    background { color { "green" } }
+                                } else {
+                                    background { color { "red" } }
+                                }
+                            }
+                        }
+
                          */
                     }
 
@@ -1530,6 +1544,15 @@ fun RenderContext.tableDemo() {
                             }
                         }
                         */
+                        /*
+                            (index, state) ->
+                        if (state.item.birthday.year < 2000) {
+                            background { color { "lime" } }
+                        } else {
+                            background { color { "pink" } }
+                        }
+
+                         */
                     }
                     ) {
                         column(title = "ID") {
@@ -1585,9 +1608,14 @@ fun RenderContext.tableDemo() {
 
                         // As first parameter to ``column`` one can optionally pass now styling definitions too like
                         // for ``columns``. This resembles the common API design of components factory functions.
-                        column(title = "Birthday", styling = { /* (_, state) ->
-                            background { color { if (state.item.birthday.year < 2000) "seagreen" else "slateblue" } }
-                            color { "white" } */
+                        column(title = "Birthday", styling = { /*(_, state) ->
+                            if (state.selected) {
+                                background { color { if (state.item.birthday.year < 2000) "orange" else "darkorange" } }
+                            } else {
+                                background { color { if (state.item.birthday.year < 2000) "seagreen" else "slateblue" } }
+                            }
+                            color { "white" }
+                                */
                         }) {
                             lens(birthdayLens + Formats.dateFormat)
                             width { minmax("120px") }
@@ -1596,7 +1624,19 @@ fun RenderContext.tableDemo() {
                         column {
                             // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
                             // the data from the table itself!
-                            // ``header`` oder ``head``?
+
+                            // TODO: Umbauen!
+                            /*
+
+                            header({
+                                // styling
+                            }) { column ->
+                                // some content
+                            }
+
+                             */
+
+
                             header(/*{
                                 background { color { primary.highlight } }
                                 color { primary.highlightContrast }

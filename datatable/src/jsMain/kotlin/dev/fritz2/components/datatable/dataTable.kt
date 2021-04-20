@@ -11,8 +11,10 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.Lenses
 import dev.fritz2.styling.StyleClass
+import dev.fritz2.styling.name
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
+import dev.fritz2.styling.style
 import dev.fritz2.styling.theme.*
 import kotlinx.coroutines.flow.*
 import kotlin.collections.Map
@@ -23,25 +25,9 @@ import kotlin.math.abs
 //  We need a solution for extending the theme without moving the table specific parts into the styling core!
 //  Some types (``Sorting`` and ``StatefulItem`` are unknown there and also should not get exposed there)
 interface DataTableStyles {
-    val headerColors: ColorScheme
-
-    /**
-     * Semantic: One [ColorScheme] per row:
-     *  - base: background of the cell
-     *  - baseContrast: text color of the cell
-     *  - highlight: background of the cell if row is selected
-     *  - highlightContrast: text color of the cell if row is selected
-     *
-     *  Use cases:
-     *   - alternating (odd - even) rows
-     *   - grouping for value based categories (for example different ranges applied for visual analyzing)
-     *
-     *   Therefore a [List] fits best: Very small overhead, but clear semantics and arbitrary coloring is possible.
-     */
-    val columnColors: List<ColorScheme>
-
     val headerStyle: BasicParams.(sorting: Sorting) -> Unit
     val columnStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
+    val hoveringStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
     val sorterStyle: Style<BasicParams>
 }
 
@@ -49,26 +35,39 @@ class DataTableTheme : DefaultTheme() {
     override val name = "Theme with Table specific styles"
 
     val dataTableStyles = object : DataTableStyles {
-        override val headerColors: ColorScheme
+        val headerColors: ColorScheme
             get() = colors.primary
 
-        override val columnColors: List<ColorScheme>
+        /**
+         * Semantic: One [ColorScheme] per row:
+         *  - base: background of the cell
+         *  - baseContrast: text color of the cell
+         *  - highlight: background of the cell if row is selected
+         *  - highlightContrast: text color of the cell if row is selected
+         *
+         *  Use cases:
+         *   - alternating (odd - even) rows
+         *   - grouping for value based categories (for example different ranges applied for visual analyzing)
+         *
+         *   Therefore a [List] fits best: Very small overhead, but clear semantics and arbitrary coloring is possible.
+         */
+        val columnColors: List<ColorScheme>
             get() = listOf(
                 ColorScheme(
                     colors.gray100,
                     colors.gray700,
-                    colors.secondary.highlight,
-                    colors.secondary.highlightContrast
+                    colors.gray700,
+                    colors.gray100
                 ),
                 ColorScheme(
                     colors.gray300,
                     colors.gray900,
-                    colors.secondary.base,
-                    // weak contrast to backgroundColor -> inputFields not readable!
-                    // fontColor fits quite good -> possible semantic between "contrast" props and this specific field?
-                    colors.secondary.baseContrast
+                    colors.gray900,
+                    colors.gray300
                 )
             )
+
+        val selectionColor: ColorScheme = colors.secondary
 
         private val basic: Style<BasicParams> = {
             paddings {
@@ -105,8 +104,8 @@ class DataTableTheme : DefaultTheme() {
                 basic()
                 with((index + 1) % 2) {
                     if (item.selected) {
-                        background { color { columnColors[this@with].highlight } }
-                        color { columnColors[this@with].highlightContrast }
+                        background { color { selectionColor.base } }
+                        color { selectionColor.baseContrast }
                     } else {
                         background { color { columnColors[this@with].base } }
                         color { columnColors[this@with].baseContrast }
@@ -131,6 +130,19 @@ class DataTableTheme : DefaultTheme() {
                             width { normal }
                             style { solid }
                         }
+                    }
+                }
+            }
+
+        override val hoveringStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
+            get() = { (index, item) ->
+                with((index + 1) % 2) {
+                    if (item.selected) {
+                        background { color { selectionColor.highlight } }
+                        color { selectionColor.highlightContrast }
+                    } else {
+                        background { color { columnColors[this@with].highlight } }
+                        color { columnColors[this@with].highlightContrast }
                     }
                 }
             }
@@ -174,6 +186,8 @@ enum class SelectionMode {
  * This class is meant for combining the data of one row with the current state specific properties like the
  * sorting strategy or whether the row is currently selected.
  */
+// TODO: Quasi entfernen; Parameter einzeln reinreichen.
+//  sorting von enum auf Boolean umstellen -> ASC/Desc = True, sonst False
 data class StatefulItem<T>(val item: T, val selected: Boolean, val sorting: Sorting)
 
 /**
@@ -962,6 +976,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
     // TODO: Cast rausnehmen, sobald Theming in fritz2 verschoben ist!
     private val headerStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.headerStyle
     private val columnStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.columnStyle
+    private val hoveringStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.hoveringStyle
     private val sorterStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.sorterStyle
 
 
@@ -1192,6 +1207,16 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
         val sorting = ComponentProperty<Sorting<T>>(Sorting())
         fun sorting(value: Sorting<T>.() -> Unit) {
             sorting.value.apply { value() }
+        }
+
+        class Hovering<T> {
+            val active = ComponentProperty(true)
+            val style = ComponentProperty<BasicParams.(IndexedValue<StatefulItem<T>>) -> Unit> {}
+        }
+
+        val hovering = ComponentProperty<Hovering<T>>(Hovering())
+        fun hovering(value: Hovering<T>.() -> Unit) {
+            hovering.value.apply(value)
         }
 
         val width = ComponentProperty<Property?>("100%")
@@ -1473,6 +1498,34 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                         val rowStore = component.dataStore.sub(rowData, rowIdProvider)
                         val isSelected = selectionStore.isDataRowSelected(rowStore.current)
                         tr {
+                            if (options.value.hovering.value.active.value) {
+                                className(isSelected.map { sel ->
+                                    style {
+                                        children("&:hover td") {
+                                            hoveringStyle(
+                                                IndexedValue(
+                                                    index,
+                                                    StatefulItem(
+                                                        rowData as Any, // cast necessary, as theme can't depend on ``T``!
+                                                        sel,
+                                                        Sorting.NONE
+                                                    )
+                                                )
+                                            )
+                                            options.value.hovering.value.style.value(
+                                                this, IndexedValue(
+                                                    index,
+                                                    StatefulItem(
+                                                        rowData,
+                                                        sel,
+                                                        Sorting.NONE
+                                                    )
+                                                )
+                                            )
+                                        }
+                                    }.name
+                                })
+                            }
                             selection.value.strategy.value?.manageSelectionByRowEvents(component, rowStore, this)
                             dblclicks.events.map { rowStore.current } handledBy component.selectionStore.dbClickedRow
                             component.stateStore.renderingCellsData(component, index, rowData, isSelected)
