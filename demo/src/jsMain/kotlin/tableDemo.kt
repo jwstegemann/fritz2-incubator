@@ -1400,7 +1400,12 @@ fun RenderContext.tableDemo() {
             }.combine(selectionSourceStore.data) { params, source ->
                 params.copy(source = source)
             }.render { (selectionMode, selectionStrategy, selectionSource) ->
-                dataTable(dataStore = TableStore, rowIdProvider = Person::id) {
+                /*
+                dataTable(rows = TableStore, rowIdProvider = Person::id, selection = multiSelectionStore) {
+                    selection { strategy { click } }
+
+                 */
+                dataTable(rows = TableStore, rowIdProvider = Person::id) {
                     selection {
                         when (selectionMode) {
                             SelectionMode.Single -> {
