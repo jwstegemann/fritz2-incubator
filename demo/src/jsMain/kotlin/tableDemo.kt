@@ -1463,6 +1463,7 @@ fun RenderContext.tableDemo() {
                         dbClicks handledBy doubleClickStore.update
                     }
 
+                    // TODO: needs same API as DataTableStyles.headerStyle(Sorting)
                     /*
                     header({
                         background { color { "peru" } }
@@ -1474,7 +1475,6 @@ fun RenderContext.tableDemo() {
                      */
 
                     options {
-                        hovering { active(false) }
                         //height("auto")
                         maxHeight("80vh")
                         /*

@@ -11,7 +11,6 @@ import dev.fritz2.identification.uniqueId
 import dev.fritz2.lenses.Lens
 import dev.fritz2.lenses.Lenses
 import dev.fritz2.styling.StyleClass
-import dev.fritz2.styling.name
 import dev.fritz2.styling.params.*
 import dev.fritz2.styling.staticStyle
 import dev.fritz2.styling.style
@@ -22,13 +21,20 @@ import kotlin.math.abs
 
 // TODO: Remove theme stuff, if code is moved into the fritz2 core project!
 //  Add specific interface and implementation into the original fritz2's theme!
-//  We need a solution for extending the theme without moving the table specific parts into the styling core!
-//  Some types (``Sorting`` and ``StatefulItem`` are unknown there and also should not get exposed there)
 interface DataTableStyles {
-    val headerStyle: BasicParams.(sorting: Sorting) -> Unit
-    val columnStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
-    val hoveringStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
-    val sorterStyle: Style<BasicParams>
+    val headerStyle: BasicParams.(sorted: Boolean) -> Unit
+
+    /**
+     * TODO: find possibility to remove separate parameters and go back to ``IndexedValue<StatefulItem<Any>>``!
+     */
+    val cellStyle: BasicParams.(value: IndexedValue<Any>, selected: Boolean, sorted: Boolean) -> Unit
+
+    /**
+     * TODO: find possibility to remove separate parameters and go back to ``IndexedValue<StatefulItem<Any>>``!
+     */
+    val hoveringStyle: BasicParams.(value: IndexedValue<Any>, selected: Boolean, sorted: Boolean) -> Unit
+
+    val sorterStyle: BasicParams.(sorted: Boolean) -> Unit
 }
 
 class DataTableTheme : DefaultTheme() {
@@ -42,8 +48,8 @@ class DataTableTheme : DefaultTheme() {
          * Semantic: One [ColorScheme] per row:
          *  - base: background of the cell
          *  - baseContrast: text color of the cell
-         *  - highlight: background of the cell if row is selected
-         *  - highlightContrast: text color of the cell if row is selected
+         *  - highlight: background of the row (each cell) that is hovered
+         *  - highlightContrast: text color of row (each cell) that is hovered
          *
          *  Use cases:
          *   - alternating (odd - even) rows
@@ -77,15 +83,10 @@ class DataTableTheme : DefaultTheme() {
             }
         }
 
-        override val headerStyle: BasicParams.(sorting: Sorting) -> Unit
-            get() = { sorting ->
-                if (sorting == Sorting.ASC || sorting == Sorting.DESC) {
-                    background { color { headerColors.highlight } }
-                    color { headerColors.highlightContrast }
-                } else {
-                    background { color { headerColors.base } }
-                    color { headerColors.baseContrast }
-                }
+        override val headerStyle: BasicParams.(sorted: Boolean) -> Unit
+            get() = {
+                background { color { headerColors.base } }
+                color { headerColors.baseContrast }
                 verticalAlign { middle }
                 fontSize { normal }
                 position { relative {} }
@@ -99,11 +100,15 @@ class DataTableTheme : DefaultTheme() {
                 }
             }
 
-        override val columnStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
-            get() = { (index, item) ->
+        override val cellStyle: BasicParams.(
+            value: IndexedValue<Any>,
+            selected: Boolean,
+            sorted: Boolean
+        ) -> Unit
+            get() = { (index, _), selected, sorted ->
                 basic()
                 with((index + 1) % 2) {
-                    if (item.selected) {
+                    if (selected) {
                         background { color { selectionColor.base } }
                         color { selectionColor.baseContrast }
                     } else {
@@ -118,7 +123,7 @@ class DataTableTheme : DefaultTheme() {
                         }
                     }
                 }
-                if (item.sorting == Sorting.ASC || item.sorting == Sorting.DESC) {
+                if (sorted) {
                     borders {
                         right {
                             color { headerColors.base }
@@ -134,10 +139,14 @@ class DataTableTheme : DefaultTheme() {
                 }
             }
 
-        override val hoveringStyle: BasicParams.(value: IndexedValue<StatefulItem<Any>>) -> Unit
-            get() = { (index, item) ->
+        override val hoveringStyle: BasicParams.(
+            value: IndexedValue<Any>,
+            selected: Boolean,
+            sorted: Boolean
+        ) -> Unit
+            get() = { (index, _), selected, _ ->
                 with((index + 1) % 2) {
-                    if (item.selected) {
+                    if (selected) {
                         background { color { selectionColor.highlight } }
                         color { selectionColor.highlightContrast }
                     } else {
@@ -147,8 +156,8 @@ class DataTableTheme : DefaultTheme() {
                 }
             }
 
-        override val sorterStyle: Style<BasicParams>
-            get() = {
+        override val sorterStyle: BasicParams.(sorted: Boolean) -> Unit
+            get() = { sorted ->
                 display { flex }
                 position {
                     absolute {
@@ -157,6 +166,9 @@ class DataTableTheme : DefaultTheme() {
                     }
                 }
                 css("cursor:pointer;")
+                if (sorted) {
+                    color { headerColors.highlight }
+                }
             }
     }
 }
@@ -170,8 +182,13 @@ enum class Sorting {
     DISABLED,
     NONE,
     ASC,
-    DESC
+    DESC;
+
+    companion object {
+        fun sorted(sorting: Sorting): Boolean = sorting == ASC || sorting == DESC
+    }
 }
+
 
 /**
  * Representation of the selection possibilities.
@@ -186,8 +203,6 @@ enum class SelectionMode {
  * This class is meant for combining the data of one row with the current state specific properties like the
  * sorting strategy or whether the row is currently selected.
  */
-// TODO: Quasi entfernen; Parameter einzeln reinreichen.
-//  sorting von enum auf Boolean umstellen -> ASC/Desc = True, sonst False
 data class StatefulItem<T>(val item: T, val selected: Boolean, val sorting: Sorting)
 
 /**
@@ -975,7 +990,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
 
     // TODO: Cast rausnehmen, sobald Theming in fritz2 verschoben ist!
     private val headerStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.headerStyle
-    private val columnStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.columnStyle
+    private val columnStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.cellStyle
     private val hoveringStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.hoveringStyle
     private val sorterStyle = Theme().unsafeCast<DataTableTheme>().dataTableStyles.sorterStyle
 
@@ -1444,7 +1459,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                     component.stateStore.renderingHeaderData(component)
                         .renderEach(component.columnStateIdProvider) { (column, sorting) ->
                             (::th.styled(column.headerStyling) {
-                                headerStyle(sorting.strategy)
+                                headerStyle(Sorting.sorted(sorting.strategy))
                                 component.header.value.styling.value()
                             })  {
                                 flexBox({
@@ -1456,7 +1471,9 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                                     with(column) { headerContent(this) }
 
                                     // Sorting
-                                    (::div.styled(sorterStyle) {}){
+                                    (::div.styled({
+                                        sorterStyle(Sorting.sorted(sorting.strategy))
+                                    }) {}){
                                         if (column.id == sorting.id) {
                                             component.options.value.sorting.value.renderer.value.renderSortingActive(
                                                 this,
@@ -1505,12 +1522,10 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                                             hoveringStyle(
                                                 IndexedValue(
                                                     index,
-                                                    StatefulItem(
-                                                        rowData as Any, // cast necessary, as theme can't depend on ``T``!
-                                                        sel,
-                                                        Sorting.NONE
-                                                    )
-                                                )
+                                                    rowData as Any, // cast necessary, as theme can't depend on ``T``!
+                                                ),
+                                                sel,
+                                                false
                                             )
                                             options.value.hovering.value.style.value(
                                                 this, IndexedValue(
@@ -1533,15 +1548,12 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                                     (::td.styled {
                                         columnStyle(
                                             this,
-                                            // Can't just be copied, as Kotlin does not allow a cast within copy!
                                             IndexedValue(
                                                 index,
-                                                StatefulItem(
-                                                    rowData as Any, // cast necessary, as theme can't depend on ``T``!
-                                                    statefulIndex.value.selected,
-                                                    statefulIndex.value.sorting
-                                                )
-                                            )
+                                                rowData as Any, // cast necessary, as theme can't depend on ``T``!
+                                            ),
+                                            statefulIndex.value.selected,
+                                            Sorting.sorted(statefulIndex.value.sorting)
                                         )
                                         columns.value.styling.value(this, statefulIndex)
                                         column.styling(this, statefulIndex)
