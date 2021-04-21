@@ -1463,7 +1463,6 @@ fun RenderContext.tableDemo() {
                         dbClicks handledBy doubleClickStore.update
                     }
 
-                    // TODO: needs same API as DataTableStyles.headerStyle(Sorting)
                     /*
                     header({
                         background { color { "peru" } }
@@ -1621,32 +1620,19 @@ fun RenderContext.tableDemo() {
                             width { minmax("120px") }
                             sortBy(Person::birthday)
                         }
-                        column {
+                        column(title = "Address") {
                             // lens can be omitted! It's purely optional and totally ok to have columns that hide its relation to
                             // the data from the table itself!
-
-                            // TODO: Umbauen!
-                            /*
-
-                            header({
-                                // styling
-                            }) { column ->
-                                // some content
-                            }
-
-                             */
-
-
-                            header(/*{
-                                background { color { primary.highlight } }
-                                color { primary.highlightContrast }
-                                //fontWeight { normal }
-                            }*/
-                            ) {
-                                title("Address")
-                                content { column ->
-                                    +column.headerName
+                            header({ sorting ->
+                                if (sorting == Sorting.ASC) {
+                                    fontWeight { normal }
+                                } else if (sorting == Sorting.DESC) {
+                                    fontStyle { italic }
                                 }
+                                background { color { primary.highlightContrast } }
+                                color { primary.highlight }
+                            }) { column ->
+                                +"${column.title}-Spalte"
                             }
                             width { max("2fr") }
                             content { _, _, rowStore ->

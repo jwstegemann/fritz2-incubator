@@ -217,7 +217,7 @@ data class StatefulItem<T>(val item: T, val selected: Boolean, val sorting: Sort
 data class Column<T>(
     val id: String, // must be unique!
     val lens: Lens<T, String>? = null,
-    val headerName: String = "",
+    val title: String = "",
     val minWidth: Property? = null,
     val maxWidth: Property? = null,
     val hidden: Boolean = false,
@@ -230,7 +230,7 @@ data class Column<T>(
         cellStore: Store<String>?,
         rowStore: SubStore<List<T>, List<T>, T>
     ) -> Unit,
-    val headerStyling: Style<BasicParams> = {},
+    val headerStyling: BasicParams.(sorting: Sorting) -> Unit = {},
     val headerContent: Div.(column: Column<T>) -> Unit
 )
 
@@ -751,22 +751,20 @@ class SelectionByCheckBox<T, I> : SelectionStrategy<T, I> {
         component: TableComponent<T, I>
     ) -> Unit = { component ->
         header {
-            content {
-                checkbox({ display { inlineBlock } }, id = uniqueId()) {
-                    checked(
-                        component.selectionStore.data.map {
-                            it.isNotEmpty() && it == component.dataStore.current
-                        }
-                    )
-                    events {
-                        changes.states().map { selected ->
-                            if (selected) {
-                                component.dataStore.current
-                            } else {
-                                emptyList()
-                            }
-                        } handledBy component.selectionStore.update
+            checkbox({ display { inlineBlock } }, id = uniqueId()) {
+                checked(
+                    component.selectionStore.data.map {
+                        it.isNotEmpty() && it == component.dataStore.current
                     }
+                )
+                events {
+                    changes.states().map { selected ->
+                        if (selected) {
+                            component.dataStore.current
+                        } else {
+                            emptyList()
+                        }
+                    } handledBy component.selectionStore.update
                 }
             }
         }
@@ -1002,7 +1000,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
             fun build(): Column<T> = Column(
                 id.value,
                 lens.value,
-                header.title.value,
+                header.title,
                 width?.min?.value,
                 width?.max?.value,
                 hidden.value,
@@ -1011,8 +1009,8 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 sortBy.value,
                 styling.value,
                 content.value,
-                header.styling.value,
-                header.content.value
+                header.styling,
+                header.content
             )
 
             val id = ComponentProperty(uniqueId())
@@ -1034,21 +1032,22 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 width = WidthContext().apply(expression)
             }
 
-            class HeaderContext<T> {
-                val title = ComponentProperty("")
-                val styling = ComponentProperty<Style<BasicParams>> {}
-                val content = ComponentProperty<Div.(column: Column<T>) -> Unit> { column ->
-                    +column.headerName
+            data class Header<T>(
+                val title: String = "",
+                val styling: BasicParams.(sorting: Sorting) -> Unit = {},
+                val content: Div.(column: Column<T>) -> Unit = { column ->
+                    +column.title
                 }
+            )
+
+            var header: Header<T> = Header()
+
+            fun header(styling: BasicParams.(sorting: Sorting) -> Unit = {}, content: Div.(column: Column<T>) -> Unit) {
+                header = Header<T>(header.title, styling, content)
             }
 
-            private var header: HeaderContext<T> = HeaderContext()
-
-            fun header(styling: Style<BasicParams> = {}, expression: HeaderContext<T>.() -> Unit) {
-                header = HeaderContext<T>().apply {
-                    expression()
-                    styling(styling)
-                }
+            fun title(title: String) {
+                header = header.copy(title = title)
             }
 
             val hidden = ComponentProperty(false)
@@ -1102,7 +1101,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
             expression: TableColumnContext<T>.() -> Unit
         ) {
             TableColumnContext<T>().apply {
-                header { title(title) }
+                title(title)
                 expression()
             }.also {
                 it.styling(styling)
@@ -1458,9 +1457,10 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                 tr {
                     component.stateStore.renderingHeaderData(component)
                         .renderEach(component.columnStateIdProvider) { (column, sorting) ->
-                            (::th.styled(column.headerStyling) {
+                            (::th.styled {
                                 headerStyle(Sorting.sorted(sorting.strategy))
                                 component.header.value.styling.value()
+                                column.headerStyling(this, sorting.strategy)
                             })  {
                                 flexBox({
                                     height { "100%" }
@@ -1468,7 +1468,7 @@ open class TableComponent<T, I>(val dataStore: RootStore<List<T>>, protected val
                                     alignItems { center }
                                 }) {
                                     // Column Header Content
-                                    with(column) { headerContent(this) }
+                                    column.headerContent(this, column)
 
                                     // Sorting
                                     (::div.styled({
