@@ -1,9 +1,10 @@
+import dev.fritz2.components.datatable.DataTableTheme
 import dev.fritz2.dom.html.Div
 import dev.fritz2.dom.html.P
 import dev.fritz2.dom.html.RenderContext
-import dev.fritz2.dom.html.render
 import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.theme.Theme
+import dev.fritz2.styling.theme.render
 
 fun RenderContext.showcaseHeader(text: String) {
     (::h1.styled {
@@ -67,12 +68,7 @@ fun RenderContext.contentFrame(init: Div.() -> Unit): Div {
 }
 
 fun main() {
-
-    render("#target") {
-        h1 { +"fritz incubator - Demo" }
-        div {
-            tableDemo()
-        }
+    render(DataTableTheme(), "#target") {
+        tableDemo()
     }
-
 }

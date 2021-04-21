@@ -12,7 +12,8 @@ data class Person (
         val email: String = "",
         val mobile: String = "",
         val phone: String = "",
-        val address: Address = Address()
+        val address: Address = Address(),
+        val job: String = ""
 )
 
 
