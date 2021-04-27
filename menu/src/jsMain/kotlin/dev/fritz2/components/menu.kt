@@ -284,91 +284,58 @@ fun RenderContext.menu(
     .render(this, styling, baseClass, id, prefix)
 
 
-typealias MenuEntry = Component<Unit>
+typealias MenuEntryComponent = Component<Unit>
 
 /**
  * Context used to build the entries of the menu.
  *
  * The menu-entry-DSL can be extended via standard Kotlin extension methods. Custom entries must implement the
- * [MenuEntry] interface and are added to the Menu via the [MenuEntriesContext.addEntry] method which is accessibly from
- * within the extension method.
+ * [MenuEntryComponent] interface (alias for `Component<Unit>`) and are added to the Menu via [MenuEntriesContext.addEntry]
+ * which is accessibly from within the extension method.
+ * In many ways these extension methods are similar to standard fritz2 convenience functions. They are only available in
+ * a limited context (`MenuEntriesContext`), however.
  *
  * The following method adds an instance of `MyMenuEntry` to the Menu. It can simply be called from within the `entries`
  * context of [MenuComponent].
  * Notice that `addEntry` is invoked in the end; the entry wouldn't be added otherwise!
  *
  * ```kotlin
- * fun MenuEntriesContext.example(expression: MyContext.() -> Unit) = MyMenuEntry()
- *      .apply(expression)
+ * fun MenuEntriesContext.example(build: MyMenuEntry.() -> Unit) = MyMenuEntry()
+ *      .apply(build)
  *      .run(::addEntry)
  * ```
  */
 open class MenuEntriesContext {
 
-    class ItemContext {
-        val icon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
-        val text = ComponentProperty("")
-
-        private var enabled = flowOf(true)
-        fun enabled(value: Boolean) = enabled(flowOf(value))
-        fun enabled(value: Flow<Boolean>) {
-            enabled = value
-        }
-
-        fun build() = MenuItem(
-            icon.value?.invoke((Theme().icons)),
-            text.value,
-            enabled
-        )
-    }
-
-    class CustomContentContext {
-        val content = ComponentProperty<RenderContext.() -> Unit> { }
-        fun build() = MenuCustomContent(content.value)
-    }
-
-    class SubheaderContext {
-        val text = ComponentProperty("")
-        fun build() = MenuSubheader(text.value)
-    }
-
-
-    private val _entries = mutableListOf<MenuEntry>()
-    val entries: List<MenuEntry>
+    private val _entries = mutableListOf<MenuEntryComponent>()
+    val entries: List<MenuEntryComponent>
         get() = _entries.toList()
 
-    fun addEntry(entry: MenuEntry) {
+    fun addEntry(entry: MenuEntryComponent) {
         _entries += entry
     }
 
 
-    fun item(expression: ItemContext.() -> Unit): Flow<MouseEvent> = ItemContext()
-        .apply(expression)
-        .build()
+    fun item(build: MenuItemComponent.() -> Unit): Flow<MouseEvent> = MenuItemComponent()
+        .apply(build)
         .also(::addEntry)
         .run { clicks }
 
-    fun custom(content: RenderContext.() -> Unit) = CustomContentContext()
-        .apply { content(content) }
-        .build()
+    fun custom(build: RenderContext.() -> Unit) = CustomMenuItemComponent()
+        .apply { content(build) }
         .run(::addEntry)
 
-    fun subheader(expression: SubheaderContext.() -> Unit) = SubheaderContext()
-        .apply(expression)
-        .build()
+    fun subheader(build: MenuSubheaderComponent.() -> Unit) = MenuSubheaderComponent()
+        .apply(build)
         .run(::addEntry)
 
     fun subheader(text: String) = subheader { text(text) }
 
-    fun divider() = addEntry(MenuDivider())
+    fun divider() = addEntry(MenuDividerComponent())
 }
 
 
-data class MenuItem(
-    val icon: IconDefinition?,
-    val text: String,
-    val enabled: Flow<Boolean>
-) : MenuEntry {
+class MenuItemComponent : MenuEntryComponent {
 
     companion object {
         private val staticMenuItemCss = staticStyle("menu-item") {
@@ -394,6 +361,11 @@ data class MenuItem(
     }
 
 
+    val icon = ComponentProperty<(Icons.() -> IconDefinition)?>(value = null)
+    val text = ComponentProperty("")
+    val enabled = ComponentProperty(flowOf(true))
+
+
     private val clickStore = object : RootStore<Unit>(Unit) {
         val forwardMouseEvents = handleAndEmit<MouseEvent, MouseEvent> { _, e -> emit(e) }
     }
@@ -410,17 +382,19 @@ data class MenuItem(
         prefix: String
     ) {
         context.apply {
-            enabled.render { enabled ->
+            enabled.value.render { enabled ->
                 box(
                     baseClass = staticMenuItemCss,
                     styling = if (enabled) menuItemActiveStyle else ({ })
                 ) {
                     clickButton {
-                        icon?.let {
-                            icon { def(it) }
+                        icon.value?.let {
+                            icon {
+                                def(it(Theme().icons))
+                            }
                         }
                         variant { menuItemButtonVariant }
-                        text(text)
+                        text(text.value)
                         disabled(!enabled)
                     }.map { it } handledBy clickStore.forwardMouseEvents
                 }
@@ -429,9 +403,10 @@ data class MenuItem(
     }
 }
 
-data class MenuCustomContent(
-    val content: RenderContext.() -> Unit
-) : MenuEntry {
+class CustomMenuItemComponent : MenuEntryComponent {
+
+    val content = ComponentProperty<RenderContext.() -> Unit> { }
+
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
@@ -449,15 +424,16 @@ data class MenuCustomContent(
                 id,
                 prefix
             ) {
-                content(this)
+                content.value(this)
             }
         }
     }
 }
 
-data class MenuSubheader(
-    val text: String
-) : MenuEntry {
+class MenuSubheaderComponent : MenuEntryComponent {
+
+    val text = ComponentProperty("")
+
     override fun render(
         context: RenderContext,
         styling: BoxParams.() -> Unit,
@@ -468,12 +444,12 @@ data class MenuSubheader(
         context.apply {
             (::h5.styled(baseClass = staticMenuEntryCss) {
                 css("white-space: nowrap")
-            }) { +text }
+            }) { +text.value }
         }
     }
 }
 
-class MenuDivider : MenuEntry {
+class MenuDividerComponent : MenuEntryComponent {
 
     private val menuDividerCss = style("menu-divider") {
         width { "100%" }

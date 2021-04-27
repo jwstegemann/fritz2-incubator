@@ -10,6 +10,7 @@ import dev.fritz2.styling.params.styled
 import dev.fritz2.styling.theme.Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.w3c.dom.events.MouseEvent
 
@@ -78,7 +79,7 @@ fun RenderContext.contentFrame(init: Div.() -> Unit): Div {
 class RadioGroupContext {
     val items = ComponentProperty(listOf<String>())
 
-    fun build() = object : MenuEntry {
+    fun build() = object : MenuEntryComponent {
         override fun render(
             context: RenderContext,
             styling: BoxParams.() -> Unit,
@@ -144,7 +145,7 @@ fun main() {
                     item {
                         icon { circleInformation }
                         text("Disabled")
-                        enabled(false)
+                        enabled(flowOf(false))
                     }
                     item {
                         icon { clock }
