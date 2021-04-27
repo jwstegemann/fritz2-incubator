@@ -20,47 +20,94 @@ import kotlin.js.Date
 // TODO: Move styles into theme
 
 interface MenuStyles {
+    val dropdown: Style<BasicParams>
     val placements: MenuPlacements
 }
 
 interface MenuPlacements {
-    val left: MenuPlacement
-    val right: MenuPlacement
-    val bottom: MenuPlacement
-}
-
-interface MenuPlacement {
-    val containerLayout: Style<FlexParams>
-    val dropdownStyle: Style<BoxParams>
+    val left: Style<BasicParams>
+    val right: Style<BasicParams>
+    val bottomLeftFacing: Style<BasicParams>
+    val bottomRightFacing: Style<BasicParams>
 }
 
 val menuStyles = object : MenuStyles {
 
+    override val dropdown: Style<BasicParams>
+        get() = {
+            width(
+                sm = { "100%" },
+                md = { maxContent }
+            )
+            overflow(
+                sm = { hidden },
+                md = { visible }
+            )
+            radius { "6px" }
+
+            paddings { vertical { smaller } }
+            zIndex { overlay }
+            boxShadow { raised }
+            background { color { neutral } }
+
+            // FIXME: Animation not working
+            //opacity { "1" }
+            //css("transition: opacity 1s ease-in-out;")
+        }
+
     override val placements = object : MenuPlacements {
-        override val left = object : MenuPlacement {
-            override val containerLayout: Style<FlexParams> = {
-                direction { rowReverse }
+        override val left: Style<BasicParams>
+            get() = {
+                position(
+                    sm = { absolute { left { "0px" } } },
+                    md = {
+                        absolute {
+                            left { auto }
+                            right { "100%" }
+                        }
+                    }
+                )
             }
-            override val dropdownStyle: Style<BasicParams> = {
-                css("transform: translateX(-100%)")
+
+        override val right: Style<BasicParams>
+            get() = {
+                position(
+                    sm = { absolute { left { "0px" } } },
+                    md = {
+                        absolute {
+                            left { "100%" }
+                        }
+                    }
+                )
             }
-        }
-        override val right = object : MenuPlacement {
-            override val containerLayout: Style<FlexParams> = {
-                direction { row }
+
+        override val bottomLeftFacing: Style<BasicParams>
+            get() = {
+                position(
+                    sm = { absolute { left { "0px" } } }
+                )
+                position(
+                    md = {
+                        absolute {
+                            top { "100%" }
+                            left { auto }
+                            right { "0px" }
+                        }
+                    }
+                )
             }
-            override val dropdownStyle: Style<BasicParams> = {
-                // No special styles needed
+
+        override val bottomRightFacing: Style<BasicParams>
+            get() = {
+                position(
+                    sm = { absolute { left { "0px" } } },
+                    md = {
+                        absolute {
+                            top { "100%" }
+                        }
+                    }
+                )
             }
-        }
-        override val bottom = object : MenuPlacement {
-            override val containerLayout: Style<FlexParams> = {
-                direction { column }
-            }
-            override val dropdownStyle: Style<BasicParams> = {
-                // No special styles needed
-            }
-        }
     }
 }
 
@@ -120,49 +167,30 @@ private val staticMenuEntryCss = staticStyle("menu-entry") {
  * more information.
  * ```
  */
-@ComponentMarker
 open class MenuComponent : Component<Unit> {
 
-    companion object {
-        private val staticContainerCss = staticStyle("menu-container") {
-            display { inlineFlex }
-            width { minContent }
-        }
-
-        private val staticDropdownContainerCss = staticStyle("menu-dropdown-container") {
-            position(
-                sm = { static },
-                md = { relative { } }
-            )
-        }
-
-        private val staticDropdownCss = staticStyle("menu-dropdown") {
-            position(
-                sm = { absolute { left { "0px" } } },
-                md = { absolute { } }
-            )
-            width(
-                sm = { "100%" },
-                md = { maxContent }
-            )
-
-            radius { "6px" }
-            overflow(
-                sm = { hidden },
-                md = { visible }
-            )
-
-            // FIXME: Animation not working
-            //opacity { "1" }
-            //css("transition: opacity 1s ease-in-out;")
-        }
+    private val containerCss = style("menu-container") {
+        position(
+            sm = { static },
+            md = { relative { } }
+        )
+        display { inlineFlex }
+        width { minContent }
     }
 
-    private val dropdownStyle: Style<BasicParams> = {
-        paddings { vertical { smaller } }
-        zIndex { overlay }
-        boxShadow { raised }
-        background { color { neutral } }
+
+    enum class DropdownPlacement {
+        Left,
+        Right,
+        BottomLeftFacing,
+        BottomRightFacing
+    }
+
+    object DropdownPlacementContext {
+        val left = DropdownPlacement.Left
+        val right = DropdownPlacement.Right
+        val bottomLeftFacing = DropdownPlacement.BottomLeftFacing
+        val bottomRightFacing = DropdownPlacement.BottomRightFacing
     }
 
 
@@ -171,6 +199,7 @@ open class MenuComponent : Component<Unit> {
         val dismiss = handle { false }
     }
 
+
     val toggle = ComponentProperty<RenderContext.() -> Unit> {
         pushButton {
             icon { fromTheme { menu } }
@@ -178,7 +207,8 @@ open class MenuComponent : Component<Unit> {
         }
     }
     val entries = ComponentProperty<(MenuEntriesContext.() -> Unit)?>(value = null)
-    val placement = ComponentProperty<MenuPlacements.() -> MenuPlacement> { bottom }
+    val placement = ComponentProperty<DropdownPlacementContext.() -> DropdownPlacement> { bottomRightFacing }
+
 
     override fun render(
         context: RenderContext,
@@ -187,23 +217,19 @@ open class MenuComponent : Component<Unit> {
         id: String?,
         prefix: String
     ) {
-        val placement = placement.value.invoke(menuStyles.placements)
-
         context.apply {
-            box(baseClass = staticContainerCss, styling = placement.containerLayout) {
+            box(baseClass = containerCss) {
 
                 box(id = "menu-toggle-${uniqueId()}") {
                     toggle.value(this)
                     clicks.events.map { } handledBy visibilityStore.show
                 }
 
-                box(baseClass = staticDropdownContainerCss) {
-                    visibilityStore.data.render { visible ->
-                        if (visible) {
-                            renderDropdown(styling, placement, baseClass, id, prefix)
-                        } else {
-                            box { /* just an empty placeholder */ }
-                        }
+                visibilityStore.data.render { visible ->
+                    if (visible) {
+                        renderDropdown(styling, baseClass, id, prefix)
+                    } else {
+                        box { /* just an empty placeholder */ }
                     }
                 }
             }
@@ -212,7 +238,6 @@ open class MenuComponent : Component<Unit> {
 
     private fun RenderContext.renderDropdown(
         styling: BoxParams.() -> Unit,
-        placement: MenuPlacement,
         baseClass: StyleClass,
         id: String?,
         prefix: String
@@ -222,10 +247,15 @@ open class MenuComponent : Component<Unit> {
         box(
             styling = { this as BoxParams
                 styling()
-                placement.dropdownStyle()
-                dropdownStyle()
+                menuStyles.dropdown()
+                when(placement.value.invoke(DropdownPlacementContext)) {
+                    DropdownPlacement.Left -> menuStyles.placements.left
+                    DropdownPlacement.Right -> menuStyles.placements.right
+                    DropdownPlacement.BottomLeftFacing -> menuStyles.placements.bottomLeftFacing
+                    DropdownPlacement.BottomRightFacing -> menuStyles.placements.bottomRightFacing
+                }.invoke()
             },
-            baseClass = baseClass + staticDropdownCss,
+            baseClass = baseClass,
             id = uniqueDropdownId,
             prefix = prefix
         ) {
