@@ -284,6 +284,13 @@ fun RenderContext.menu(
     .render(this, styling, baseClass, id, prefix)
 
 
+/**
+ * A special [Component] that can be used as an entry in a [MenuComponent].
+ *
+ * @see MenuItemComponent
+ * @see MenuDividerComponent
+ * @see MenuSubheaderComponent
+ */
 typealias MenuEntryComponent = Component<Unit>
 
 /**
@@ -335,7 +342,17 @@ open class MenuEntriesContext {
 }
 
 
-class MenuItemComponent : MenuEntryComponent {
+/**
+ * This class combines the _configuration_ and the core rendering of a MenuItemComponent.
+ *
+ * A MenuItem is a special kind of button consisting of a label and an optional icon used in dropdown menus.
+ * Just like a regular button it is clickable and can be enabled/disabled.
+ *
+ * It can be configured with an _icon_, a _text_ and a boolean-[Flow] to determine whether the item is enabled.
+ *
+ * @see MenuItemComponent
+ */
+open class MenuItemComponent : MenuEntryComponent {
 
     companion object {
         private val staticMenuItemCss = staticStyle("menu-item") {
@@ -403,7 +420,13 @@ class MenuItemComponent : MenuEntryComponent {
     }
 }
 
-class CustomMenuItemComponent : MenuEntryComponent {
+/**
+ * This class combines the _configuration_ and the core rendering of a CustomMenuItemComponent.
+ *
+ * A custom menu item can be any fritz2 component. The component simply wraps any layout in a container and renders it
+ * to the menu.
+ */
+open class CustomMenuItemComponent : MenuEntryComponent {
 
     val content = ComponentProperty<RenderContext.() -> Unit> { }
 
@@ -430,7 +453,13 @@ class CustomMenuItemComponent : MenuEntryComponent {
     }
 }
 
-class MenuSubheaderComponent : MenuEntryComponent {
+/**
+ * This class combines the _configuration_ and the core rendering of a MenuSubheaderComponent.
+ *
+ * A subheader can be used to introduce a group of menu entries and separate them from the entries above.
+ * It simply is a styled header consisting of a static _text_.
+ */
+open class MenuSubheaderComponent : MenuEntryComponent {
 
     val text = ComponentProperty("")
 
@@ -449,7 +478,13 @@ class MenuSubheaderComponent : MenuEntryComponent {
     }
 }
 
-class MenuDividerComponent : MenuEntryComponent {
+/**
+ * This class combines the _configuration_ and the core rendering of a MenuSubheaderComponent.
+ *
+ * Similar to a subheader a divider can be used to group entries together. Compared to a subheader a divider displays
+ * a thin line rather than text.
+ */
+open class MenuDividerComponent : MenuEntryComponent {
 
     private val menuDividerCss = style("menu-divider") {
         width { "100%" }
