@@ -8,7 +8,7 @@ ext["fritz2Version"] = "0.9.1"
 allprojects {
     //manage common setting and dependencies
     repositories {
-        // mavenLocal()
+        mavenLocal()
         mavenCentral()
         maven("https://dl.bintray.com/kotlin/kotlin-dev")
         maven("https://dl.bintray.com/kotlin/kotlin-eap")
@@ -18,7 +18,7 @@ allprojects {
 
 subprojects {
     group = "dev.fritz2"
-    version = "0.9.1"
+    version = "0.10-SNAPSHOT"
 }
 
 tasks.dokkaHtmlMultiModule.configure {
